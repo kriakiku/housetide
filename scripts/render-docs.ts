@@ -10,6 +10,7 @@ import {
   shadow,
   sparkle,
   stenchLines,
+  sceneSurface,
   superellipsePath,
   fly,
   tileFor,
@@ -1159,6 +1160,45 @@ function dayCycle(only?: number, stillOffset?: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round">${box(0, 0, WIDTH, HEIGHT, 24)}</clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
 }
 
+function layoutScene(tile: Tile, x: number, y: number, width: number): string {
+  const scene = { progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never
+  return serialize(renderScene(scene, { animations: false, bleed: true }))
+    .replaceAll(/<!--.*?-->/g, '')
+    .replace('<svg', `<svg x="${x}" y="${y}" width="${width}" height="${width * 0.96}"`)
+}
+
+function layoutsImage(): string {
+  const washed = wash('waiting', 1, 0, 'Hang it up', 'Just finished', 'Hung up', 'loud')
+  const tasks = [pillsDue, washed, plantLater]
+  const surface = (tile: Tile) =>
+    sceneSurface({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never)
+  const heading = (x: number, text: string) =>
+    `<text x="${x}" y="50" font-size="15" fill="#aba8b8" font-family="ui-monospace, Menlo, monospace">${text}</text>`
+  const tileW = 168
+  const tileH = 250
+  const tiles = tasks
+    .map((tile, index) => {
+      const x = 40 + index * (tileW + 10)
+      const y = 66
+      const id = `layout-tile-${index}`
+      return `<clipPath id="${id}">${box(x, y, tileW, tileH, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${x}" y="${y}" width="${tileW}" height="${tileH}" fill="${surface(tile).floor}"/>${layoutScene(tile, x, y, tileW)}</g>${label(x + 10, y + 180, 15.5, '#f4f2fa', tile.title, 'font-weight="600"')}${label(x + 10, y + 198, 11.5, '#ffffff', `${tile.stage} · ${tile.status}`, 'opacity="0.76"')}${buttonMarkup(tile, x + 10, y + 204, tileW - 20)}`
+    })
+    .join('')
+  const rowX = 612
+  const rowW = 308
+  const rows = tasks
+    .map((tile, index) => {
+      const y = 66 + index * 84
+      const id = `layout-row-${index}`
+      const { wall, floor } = surface(tile)
+      return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="65.4" fill="${wall}"/><rect x="${rowX}" y="${y + 65.4}" width="${rowW}" height="10.6" fill="${floor}"/>${layoutScene(tile, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
+    })
+    .join('')
+  const width = 960
+  const height = 340
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same three tasks as picture tiles and as compact strips">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(40, 'layout: scenes')}${heading(rowX, 'layout: list')}${tiles}${rows}</svg>\n`
+}
+
 mkdirSync(OUT, { recursive: true })
 gallery('laundry', [
   { label: 'Piling up', name: 'laundry', state: 'accumulating', fill: 0.35 },
@@ -1175,6 +1215,7 @@ gallery('others', [
   { label: 'Any other task', name: 'generic', state: 'accumulating', fill: 0.6 },
 ])
 writeFileSync(join(OUT, 'day.svg'), dayCycle())
+writeFileSync(join(OUT, 'layouts.svg'), layoutsImage())
 
 const frameArg = process.argv.indexOf('--frame')
 if (frameArg !== -1) {

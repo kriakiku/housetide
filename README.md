@@ -71,6 +71,12 @@ layout: list
 | `title`      | none    | A heading.                                             |
 | `animations` | `true`  | Set to `false` for low-powered screens.                |
 
+Both layouts draw each task as one picture, with its text and button on the scene. The sidebar page has the same choice as a switch on the Today tab.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/layouts.svg" alt="The same three tasks shown as picture tiles and as compact strips" width="100%">
+</p>
+
 ## For your automations
 
 | Kind     | Name                                                                                                                           |
