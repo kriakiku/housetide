@@ -122,10 +122,10 @@ export const sceneStyles = css`
       animation: ht-buzz 1.8s steps(6) infinite;
     }
     .ht-animated .ht-a-drip {
-      animation: ht-drip 1.8s steps(14) infinite;
+      animation: ht-drip 1.8s ease-in infinite;
     }
     .ht-animated .ht-a-fall {
-      animation: ht-fall 1.6s steps(14) infinite;
+      animation: ht-fall 1.6s ease-in infinite;
     }
     .ht-animated .ht-a-drift {
       animation: ht-drift 5s steps(30) infinite alternate;

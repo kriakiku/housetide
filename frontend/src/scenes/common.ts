@@ -117,7 +117,7 @@ export function tileFor(state: SceneState, stink: number): { wall: string; floor
   return { wall: mix(base.wall, SWAMP.wall, t), floor: mix(base.floor, SWAMP.floor, t) }
 }
 
-const FLOOR = 'M0 168H200V172a28 28 0 0 1-28 28H28a28 28 0 0 1-28-28Z'
+export const FLOOR = 'M0 168H200V172a28 28 0 0 1-28 28H28a28 28 0 0 1-28-28Z'
 
 export function frame(
   name: SceneName,
@@ -188,7 +188,7 @@ export function sparkle(x: number, y: number, size: number, delay: number): SVGT
 
 const WAVY = 'M0 0c-9-7 9-13 0-20c-9-7 9-13 0-20'
 
-export function stenchLines(points: ReadonlyArray<readonly [number, number]>): Art {
+export function stenchLines(points: ReadonlyArray<readonly [number, number]>, first = 0): Art {
   return points.map(([x, y], i) =>
     part(
       'stench',
@@ -198,10 +198,10 @@ export function stenchLines(points: ReadonlyArray<readonly [number, number]>): A
         motion(
           'waft',
           svg`<path d=${WAVY} fill="none" stroke=${COLORS.stench} stroke-width="5.5" stroke-linecap="round" />`,
-          i + 1,
+          i + first + 1,
         ),
       ),
-      i,
+      i + first,
     ),
   )
 }

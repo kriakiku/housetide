@@ -5,16 +5,50 @@ import {
   COLORS,
   drop,
   face,
-  frame,
+  FLOOR,
   mix,
   motion,
   shadow,
   sparkle,
+  stenchLines,
+  fly,
+  tileFor,
 } from '../frontend/src/scenes/common.ts'
 import { renderScene } from '../frontend/src/scenes/index.ts'
-import { pillsParts, type PillsParts } from '../frontend/src/scenes/pills.ts'
+import {
+  basketShell,
+  BASKET_FACE,
+  bubble,
+  cloud,
+  ding,
+  DRY_SPARKLES,
+  drips,
+  drumLoad,
+  foldedStack,
+  HUNG,
+  laundryParts,
+  machineShell,
+  openDoor,
+  peg,
+  PILE,
+  puddle,
+  shakeLines,
+  spill,
+  washingLine,
+  wetLoad,
+  type LaundryParts,
+  type LaundryView,
+} from '../frontend/src/scenes/laundry.ts'
+import {
+  MISSED_BOTTOM,
+  MISSED_SHINE,
+  MISSED_TOP,
+  pillsParts,
+  type PillsParts,
+} from '../frontend/src/scenes/pills.ts'
 import { plantParts, type PlantParts } from '../frontend/src/scenes/plant.ts'
 import { sceneStyles } from '../frontend/src/styles.ts'
+import type { SceneState } from '../frontend/src/types.ts'
 
 const OUT = join(import.meta.dir, '..', 'docs')
 const CELL = 200
@@ -268,22 +302,6 @@ const MOMENTS: Moment[] = [
 const label = (x: number, y: number, size: number, fill: string, value: string, extra = '') =>
   `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" font-family="${FONT}" ${extra}>${value}</text>`
 
-function sceneMarkup(
-  sample: Omit<Sample, 'label'>,
-  x: number,
-  y: number,
-  size: number,
-  prefix: string,
-  animations: boolean,
-): string {
-  const scene = { progress: 0.5, fill: 0, stink: 0, ...sample } as never
-  return serialize(renderScene(scene, { animations }))
-    .replaceAll(/<!--.*?-->/g, '')
-    .replaceAll(/\bid="([^"]+)"/g, `id="${prefix}$1"`)
-    .replaceAll(/url\(#([^)]+)\)/g, `url(#${prefix}$1)`)
-    .replace('<svg', `<svg x="${x}" y="${y}" width="${size}" height="${size}"`)
-}
-
 function buttonMarkup(tile: Tile, x: number, y: number, width: number): string {
   const palette = {
     loud: ['#7f77dd', '#ffffff'],
@@ -311,17 +329,6 @@ const COLUMNS = [56, 344, 632]
 const SCENE_SIZE = 176
 const SCENE_Y = TILES_Y + 12
 const SCENE_RX = 25
-
-function sceneContent(tile: Tile, x: number, prefix: string, animations: boolean): string {
-  return sceneMarkup(
-    tile.scene,
-    x + TILE_W / 2 - SCENE_SIZE / 2,
-    SCENE_Y,
-    SCENE_SIZE,
-    prefix,
-    animations,
-  )
-}
 
 function textContent(tile: Tile, x: number): string {
   const center = x + TILE_W / 2
@@ -365,48 +372,7 @@ function runs(): Run[] {
   return result
 }
 
-const DRAIN_SECONDS = 1.5
-const CENTER_Y = SCENE_Y + SCENE_SIZE / 2
 const centerX = (column: number) => COLUMNS[column]! + TILE_W / 2
-const origin = (column: number, y = CENTER_Y) => `transform-origin:${centerX(column)}px ${y}px`
-
-function spiralArm(cx: number, turn: number): string {
-  const points = Array.from({ length: 40 }, (_, step) => {
-    const t = step / 39
-    const radius = 8 + t * 132
-    const angle = turn + t * Math.PI * 2.6
-    return `${(cx + Math.cos(angle) * radius).toFixed(1)} ${(CENTER_Y + Math.sin(angle) * radius).toFixed(1)}`
-  })
-  return `<path d="M${points.join('L')}" fill="none" stroke="#7cc0ff" stroke-width="6" stroke-linecap="round" opacity="0.75"/>`
-}
-
-function whirlMarkup(delay: number, still: boolean): string {
-  const cx = centerX(1)
-  const style = still ? '' : ` style="${origin(1)};animation-delay:${delay.toFixed(2)}s"`
-  const arms = [0, 1, 2, 3].map((arm) => spiralArm(cx, (arm * Math.PI) / 2)).join('')
-  return `<g clip-path="url(#scene1)"><g class="whirl"${style}><circle cx="${cx}" cy="${CENTER_Y}" r="140" fill="#1d5aa8"/>${arms}<circle cx="${cx}" cy="${CENTER_Y}" r="13" fill="#06101f"/></g></g>`
-}
-
-function itemsMarkup(delay: number, still: boolean): string {
-  const cx = centerX(1)
-  const shapes = [
-    '<path d="M-18 -14l10 -6q8 6 16 0l10 6l8 12l-10 6v18h-32v-18l-10 -6z" fill="#ffcf4a"/>',
-    '<path d="M-8 -20h14v18l12 12q4 8 -6 10h-12l-12 -14z" fill="#ff7b6e"/>',
-    '<rect x="-20" y="-14" width="40" height="28" rx="5" fill="#59d3a8"/>',
-    '<path d="M-18 -14l10 -6q8 6 16 0l10 6l8 12l-10 6v18h-32v-18l-10 -6z" fill="#b48cff"/>',
-    '<path d="M-8 -20h14v18l12 12q4 8 -6 10h-12l-12 -14z" fill="#7cc0ff"/>',
-  ]
-  const items = shapes
-    .map((shape, index) => {
-      const angle = index * 72 + 20
-      const inner = still
-        ? ` transform="translate(${34 + index * 11} 0)"`
-        : ` style="${origin(1)};animation-delay:${(delay + index * 0.05).toFixed(2)}s"`
-      return `<g transform="rotate(${angle} ${cx} ${CENTER_Y})"><g class="suck"${inner}><g transform="translate(${cx} ${CENTER_Y}) scale(0.62)">${shape}</g></g></g>`
-    })
-    .join('')
-  return `<g clip-path="url(#scene1)">${items}</g>`
-}
 
 function skyMarkup(moment: Moment, index: number, cls: string): string {
   const id = `sky${index}`
@@ -464,23 +430,6 @@ function stops(name: string, start: number, end: number, enter: Stop[], exit: St
   const before = first > 0 ? `0%, ${first - 0.01}% { opacity: 0 } ` : ''
   const after = last < 100 ? ` ${last + 0.01}%, 100% { opacity: 0 }` : ''
   return `@keyframes ${name} { ${before}${body}${after} }`
-}
-
-function drainKeyframes({ start, end }: Run): string {
-  const here = 'opacity: 1; transform: rotate(0deg) scale(1)'
-  return stops(
-    `d${start}-${end}`,
-    start,
-    end,
-    [
-      [0, 'opacity: 1; transform: rotate(-260deg) scale(0.04)'],
-      [0.6, here],
-    ],
-    [
-      [-DRAIN_SECONDS / 2, here],
-      [0, 'opacity: 1; transform: rotate(720deg) scale(0.03)'],
-    ],
-  )
 }
 
 function textKeyframes({ start, end }: Run): string {
@@ -566,7 +515,7 @@ function timeline(only: number | undefined, prefix: string): Timeline {
         `${percent(index) + blend}% { ${at(index)} }`,
       ]
     })
-    rules.push(`.${name} { animation: ${name} ${seconds}s ease-in-out infinite }`)
+    rules.push(`.${name} { animation: ${name} ${seconds}s ease-in-out infinite backwards }`)
     rules.push(`@keyframes ${name} { ${frames.join(' ')} 100% { ${at(count - 1)} } }`)
     return name
   }
@@ -586,22 +535,11 @@ function timeline(only: number | undefined, prefix: string): Timeline {
   return { animated, focus, attrs, rules }
 }
 
-function backgroundLayers(
-  name: 'plant' | 'pills',
-  tiles: Tile[],
-  attrs: Timeline['attrs'],
-): string {
-  return [...new Set(tiles.map((tile) => JSON.stringify(tile.scene)))]
-    .map((scene) => {
-      const parsed = { progress: 0.5, fill: 0, stink: 0, ...(JSON.parse(scene) as object) } as never
-      const markup = serialize(frame(name, parsed, { animations: false }, [])).replace(
-        '<svg',
-        '<svg width="200" height="200"',
-      )
-      const visible = tiles.map((tile) => (JSON.stringify(tile.scene) === scene ? '1' : '0'))
-      return `<g ${attrs({ opacity: visible })}>${markup}</g>`
-    })
-    .join('')
+function backdrop(tiles: Tile[], attrs: Timeline['attrs']): string {
+  const colors = tiles.map((tile) => tileFor(tile.scene.state as SceneState, tile.scene.stink ?? 0))
+  const wall = colors.map((color) => color.wall)
+  const floor = colors.map((color) => color.floor)
+  return `<rect width="200" height="200" rx="28" ${attrs({ fill: wall })}/><circle cx="100" cy="98" r="86" fill="#fff" opacity=".05"/><path d="${FLOOR}" ${attrs({ fill: floor })}/>`
 }
 
 const PILL_SLOTS = [
@@ -613,8 +551,6 @@ const PILL_SLOTS = [
   [84, 124],
   [116, 124],
 ] as const
-const STALE_TOP = '#8f8a84'
-const STALE_BOTTOM = '#aaa497'
 
 function livingPills(only: number | undefined): { markup: string; css: string } {
   const { animated, attrs, rules } = timeline(only, 'q')
@@ -634,23 +570,23 @@ function livingPills(only: number | undefined): { markup: string; css: string } 
     const top = series((state) => {
       const value = slotState(state, index)
       if (value === 'current') return COLORS.sun
-      return value === 'missed' ? STALE_TOP : COLORS.coral
+      return value === 'missed' ? MISSED_TOP : COLORS.coral
     })
     const bottom = series((state) =>
-      slotState(state, index) === 'missed' ? STALE_BOTTOM : COLORS.cream,
+      slotState(state, index) === 'missed' ? MISSED_BOTTOM : COLORS.cream,
     )
     const capsule: Tracks = {
       opacity: full,
       filter: series((state) => (slotState(state, index) === 'taken' ? 'blur(5px)' : 'blur(0px)')),
-      transform: series((state) => {
-        const value = slotState(state, index)
-        if (value === 'taken') return 'translate(8px, -74px) rotate(46deg) scale(0.45)'
-        return value === 'missed'
-          ? 'translate(0px, 0px) rotate(-14deg) scale(0.84)'
-          : 'translate(0px, 0px) rotate(0deg) scale(1)'
-      }),
+      transform: series((state) =>
+        slotState(state, index) === 'taken'
+          ? 'translate(8px, -74px) rotate(46deg) scale(0.45)'
+          : 'translate(0px, 0px) rotate(0deg) scale(1)',
+      ),
     }
-    const shine = series((state) => (slotState(state, index) === 'missed' ? '0.15' : '0.6'))
+    const shine = series((state) =>
+      slotState(state, index) === 'missed' ? String(MISSED_SHINE) : '0.6',
+    )
     const halo = series((state) => {
       if (slotState(state, index) !== 'current') return '0'
       return state.phase === 'ready' ? '1' : '0.45'
@@ -697,12 +633,296 @@ function livingPills(only: number | undefined): { markup: string; css: string } 
     .join('')
   const left = centerX(0) - SCENE_SIZE / 2
   const body = [
-    backgroundLayers('pills', tiles, attrs),
+    backdrop(tiles, attrs),
     serialize(shadow(100, 176, 72)),
     pack,
     glass,
     twinkles,
   ].join('')
+  return {
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    css: rules.join('\n'),
+  }
+}
+
+const DRUM_X = 100
+const DRUM_Y = 128
+const JOLTS = [
+  [-1.4, 0.5],
+  [1.2, -0.6],
+  [-0.9, -0.4],
+  [1.5, 0.6],
+] as const
+const JOLT_SECONDS = 0.1
+
+function livingLaundry(only: number | undefined): { markup: string; css: string } {
+  const { animated, attrs, rules } = timeline(only, 'w')
+  const seconds = MOMENTS.length * FRAME_SECONDS
+  const tiles = MOMENTS.map((moment) => moment.laundry)
+  const states = tiles.map((tile) =>
+    laundryParts({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never),
+  )
+  type Pick = (state: LaundryParts) => boolean
+  const series = <T>(pick: (state: LaundryParts) => T) => states.map(pick)
+  const show = (pick: Pick) => series((state) => (pick(state) ? '1' : '0'))
+  const seen =
+    (...views: LaundryView[]): Pick =>
+    (state) =>
+      views.includes(state.view)
+  const inBasket = seen('basket')
+  const inMachine = seen('washing', 'wet')
+  const isWashing = seen('washing')
+  const isWet = seen('wet')
+  const isDrying = seen('drying')
+
+  const fading = (pick: Pick, delay: number, art: unknown) =>
+    `<g ${attrs({ opacity: show(pick) }, delay)}>${serialize(art)}</g>`
+  const anchored = (x: number, y: number, tracks: Tracks, delay: number, art: unknown) =>
+    `<g transform="translate(${x} ${y})"><g ${attrs(tracks, delay)}><g transform="translate(${-x} ${-y})">${serialize(art)}</g></g></g>`
+  const popped = (pick: Pick, from = 0.2): Tracks => ({
+    opacity: show(pick),
+    transform: series((state) => (pick(state) ? 'scale(1)' : `scale(${from})`)),
+  })
+  const home = 'translate(0px, 0px) rotate(0deg) scale(1)'
+  const intoDrum = (x: number, y: number) =>
+    `translate(${DRUM_X - x}px, ${DRUM_Y - y}px) rotate(200deg) scale(0.25)`
+
+  const clothes = PILE.flatMap(([min, pieces], step) =>
+    pieces.map(([x, y, art], index) => {
+      const here: Pick = (state) => inBasket(state) && state.pile >= min
+      const tracks: Tracks = {
+        opacity: show(here),
+        transform: series((state) => {
+          if (here(state)) return home
+          return inBasket(state)
+            ? 'translate(0px, -70px) rotate(-30deg) scale(0.6)'
+            : intoDrum(x, y)
+        }),
+      }
+      return anchored(x, y, tracks, step * 0.07 + index * 0.04, art())
+    }),
+  ).join('')
+
+  const basketTracks: Tracks = {
+    opacity: show(inBasket),
+    transform: series((state) =>
+      inBasket(state) ? 'translate(0px, 0px) scale(1)' : 'translate(-46px, 8px) scale(0.6)',
+    ),
+  }
+  const basketFaces = [...new Set(states.filter(inBasket).map((state) => state.mood))]
+    .map((mood) =>
+      fading(
+        (state) => inBasket(state) && state.mood === mood,
+        0.2,
+        face(100, 150, mood, BASKET_FACE, 1.05),
+      ),
+    )
+    .join('')
+  const basketBack = anchored(100, 180, basketTracks, 0.45, [
+    shadow(100, 182, 70),
+    `<ellipse cx="100" cy="112" rx="62" ry="9" fill="${COLORS.wickerDark}"/>`,
+  ])
+  const basketFront = anchored(100, 180, basketTracks, 0.45, [basketShell(), basketFaces])
+  const overflow = anchored(
+    100,
+    150,
+    popped((state) => state.overflow, 0.35),
+    0.1,
+    spill(),
+  )
+  const stench = (
+    [
+      [22, 100],
+      [178, 96],
+      [172, 46],
+    ] as const
+  )
+    .map((point, index) =>
+      fading(
+        (state) => inBasket(state) && state.stench > index,
+        0.3 + index * 0.15,
+        stenchLines([point], index),
+      ),
+    )
+    .join('')
+  const basketFlies = (
+    [
+      [34, 44],
+      [146, 20],
+      [58, 18],
+    ] as const
+  )
+    .map(([x, y], index) =>
+      fading(
+        (state) => inBasket(state) && state.flies > index,
+        0.5 + index * 0.15,
+        fly(x, y, index),
+      ),
+    )
+    .join('')
+
+  const lamps = [0, 1, 2]
+    .map((index) => {
+      const fill = series((state) => {
+        const leds = state.view === 'wet' ? 3 : 2
+        return index < leds ? COLORS.mint : COLORS.metalDark
+      })
+      return `<circle cx="${132 + index * 14}" cy="44" r="4.5" ${attrs({ fill }, 0.5 + index * 0.1)}/>`
+    })
+    .join('')
+  const machineFaces = [...new Set(states.filter(inMachine).map((state) => state.mood))]
+    .map((mood) =>
+      fading(
+        (state) => inMachine(state) && state.mood === mood,
+        0.2,
+        face(100, 42, mood, COLORS.fly, 0.85),
+      ),
+    )
+    .join('')
+  const glassFill = series((state) => (isWet(state) ? '#141a33' : COLORS.glass))
+  const door: Tracks = {
+    opacity: show(isWet),
+    transform: series((state) =>
+      isWet(state) ? 'translate(0px, 0px) scale(1, 1)' : 'translate(62px, 0px) scale(2.3, 0.85)',
+    ),
+  }
+  const machineTracks: Tracks = {
+    opacity: show(inMachine),
+    transform: series((state) =>
+      inMachine(state) ? 'translate(0px, 0px) scale(0.84)' : 'translate(0px, 46px) scale(0.5)',
+    ),
+  }
+  const machine = anchored(100, 181, machineTracks, 0, [
+    machineShell(),
+    lamps,
+    machineFaces,
+    `<circle cx="100" cy="118" r="39" ${attrs({ fill: glassFill }, 0.3)}/>`,
+    fading(isWashing, 0.3, drumLoad()),
+    fading(isWet, 0.5, wetLoad()),
+    `<circle cx="100" cy="118" r="39" fill="none" stroke="${COLORS.metalDark}" stroke-width="6" ${attrs({ opacity: show(isWashing) }, 0.2)}/>`,
+    `<path d="M74 100a32 32 0 0 1 22-13" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-opacity=".55" ${attrs({ opacity: show(isWashing) }, 0.2)}/>`,
+    anchored(38, 118, door, 0.25, openDoor()),
+  ])
+  const washIndex = states.findIndex(isWashing)
+  const span = (value: number) => (value / seconds) * 100
+  const startShake = washIndex * FRAME_SECONDS
+  const joltFrames = Array.from({ length: Math.floor(FRAME_SECONDS / JOLT_SECONDS) }, (_, step) => {
+    const [x, y] = JOLTS[step % JOLTS.length] as readonly [number, number]
+    return `${span(startShake + step * JOLT_SECONDS)}% { transform: translate(${x}px, ${y}px) }`
+  }).join(' ')
+  rules.push(`.wshake { animation: wshake ${seconds}s linear infinite }`)
+  rules.push(
+    `@keyframes wshake { 0%, ${span(startShake - JOLT_SECONDS)}% { transform: translate(0px, 0px) } ${joltFrames} ${span(startShake + FRAME_SECONDS)}%, 100% { transform: translate(0px, 0px) } }`,
+  )
+  const shaking = `<g class="${animated ? 'kf wshake' : ''}">${machine}</g>`
+
+  const bubbles = (
+    [
+      [142, 44, 11, 1],
+      [58, 40, 8, 2],
+      [174, 58, 7, 3],
+      [26, 62, 9, 4],
+      [100, 36, 6, 5],
+    ] as const
+  )
+    .map(([x, y, size, delay], index) =>
+      fading(isWashing, 0.4 + index * 0.08, bubble(x, y, size, delay)),
+    )
+    .join('')
+  const clouds = (
+    [
+      [148, 30, 1],
+      [50, 32, 0.9],
+      [100, 18, 0.72],
+    ] as const
+  )
+    .map(([x, y, size], index) =>
+      anchored(
+        x,
+        y,
+        popped((state) => isWet(state) && state.cloud > index, 0.4),
+        0.2 + index * 0.15,
+        cloud(x, y, size, index + 1),
+      ),
+    )
+    .join('')
+  const wetFlies = (
+    [
+      [176, 96],
+      [20, 92],
+    ] as const
+  )
+    .map(([x, y], index) =>
+      fading((state) => isWet(state) && state.flies > index, 0.4 + index * 0.15, fly(x, y, index)),
+    )
+    .join('')
+
+  const hung = HUNG.map((item, index) => {
+    const delay = 0.2 + index * 0.14
+    const tracks: Tracks = {
+      opacity: show(isDrying),
+      transform: series((state) => {
+        if (isDrying(state)) return home
+        return inMachine(state)
+          ? intoDrum(item.x, item.y)
+          : 'translate(20px, -60px) rotate(15deg) scale(0.5)'
+      }),
+    }
+    const pegs = item.pegs
+      .map(([x, y], order) => {
+        const dropIn: Tracks = {
+          opacity: show(isDrying),
+          transform: series((state) =>
+            isDrying(state) ? 'translate(0px, 0px)' : 'translate(0px, -14px)',
+          ),
+        }
+        return `<g ${attrs(dropIn, delay + 0.35 + order * 0.08)}>${serialize(peg(x, y))}</g>`
+      })
+      .join('')
+    const body = `<g transform="translate(${item.x} ${item.y})"><g ${attrs(tracks, delay)}>${serialize(item.art())}</g></g>`
+    return { body, pegs }
+  })
+  const line = [
+    fading(isDrying, 0, washingLine()),
+    hung.map(({ body }) => body).join(''),
+    hung.map(({ pegs }) => pegs).join(''),
+    anchored(
+      100,
+      170,
+      {
+        opacity: show(isDrying),
+        transform: series((state) =>
+          isDrying(state) ? 'translate(0px, 0px) scale(1)' : 'translate(0px, 34px) scale(0.6)',
+        ),
+      },
+      0.6,
+      foldedStack(),
+    ),
+    DRY_SPARKLES.map(([x, y, size, delay], index) =>
+      fading(isDrying, 0.8 + index * 0.1, sparkle(x, y, size, delay)),
+    ).join(''),
+  ].join('')
+
+  const body = [
+    backdrop(tiles, attrs),
+    fading(inMachine, 0, shadow(100, 183, 76)),
+    anchored(94, 184, popped(isWet), 0.5, puddle()),
+    basketBack,
+    shaking,
+    clothes,
+    overflow,
+    basketFront,
+    stench,
+    basketFlies,
+    fading(isWet, 0.6, drips()),
+    anchored(170, 54, popped(isWet), 0.4, ding()),
+    bubbles,
+    fading(isWashing, 0.5, shakeLines()),
+    clouds,
+    wetFlies,
+    line,
+  ].join('')
+  const left = centerX(1) - SCENE_SIZE / 2
   return {
     markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
     css: rules.join('\n'),
@@ -840,9 +1060,8 @@ function livingPlant(only: number | undefined, showCan: boolean): { markup: stri
   rules.push(
     `@keyframes can { 0%, ${pourAt - span(1.1)}% { opacity: 0; transform: translate(34px, -20px) rotate(16deg) } ${pourAt - span(0.7)}%, ${pourAt + span(0.6)}% { opacity: 1; transform: translate(0px, 0px) rotate(0deg) } ${pourAt + span(1)}%, 100% { opacity: 0; transform: translate(34px, -20px) rotate(16deg) } }`,
   )
-  rules.push('@media (prefers-reduced-motion: reduce) { .kf { animation: none } }')
 
-  const backgrounds = backgroundLayers('plant', tiles, attrs)
+  const backgrounds = backdrop(tiles, attrs)
   const left = centerX(2) - SCENE_SIZE / 2
   const body = [
     backgrounds,
@@ -868,36 +1087,20 @@ function livingPlant(only: number | undefined, showCan: boolean): { markup: stri
 function dayStyles(allRuns: Run[]): string {
   const total = MOMENTS.length
   const seconds = total * FRAME_SECONDS
-  const pct = (value: number) => (value / seconds) * 100
   const sun = MOMENTS.map((moment, index) => {
     const opacity = moment.hour > 21 ? 0 : 1
     return `${percent(index)}% { transform: translate(${sunX(moment.hour)}px, ${sunY(moment.hour)}px); opacity: ${opacity} }`
   }).join(' ')
   const last = MOMENTS.at(-1) as Moment
   const moon = `0%, ${percent(total - 1) - 1}% { opacity: 0 } ${percent(total - 1)}%, 99% { opacity: 1 } 100% { opacity: 0 }`
-  const kinds: Array<[number, string, (run: Run) => string, string]> = [
-    [1, 'd', drainKeyframes, 'ease-in-out'],
-  ]
-  const sceneRules = kinds.flatMap(([column, kind, frames, easing]) => {
-    const own = allRuns.filter((run) => run.column === column)
-    return [
-      ...own.map(
-        (run) =>
-          `.${kind}${run.start}-${run.end} { animation: ${kind}${run.start}-${run.end} ${seconds}s ${easing} infinite }`,
-      ),
-      ...own.map(frames),
-    ]
-  })
   const textRuns = [...new Map(allRuns.map((run) => [`${run.start}-${run.end}`, run])).values()]
-  const drain = pct(DRAIN_SECONDS)
   return [
-    '.f, .run, .txt, .c, .whirl, .suck { opacity: 0 }',
+    '.f, .txt, .c { opacity: 0 }',
     '.f0 { opacity: 1 }',
     ...MOMENTS.slice(1).map(
       (_, offset) => `.f${offset + 1} { animation: s${offset + 1} ${seconds}s linear infinite }`,
     ),
     ...MOMENTS.slice(1).map((_, offset) => skyKeyframes(offset + 1)),
-    ...sceneRules,
     ...textRuns.map(
       (run) =>
         `.t${run.start}-${run.end} { animation: t${run.start}-${run.end} ${seconds}s linear infinite }`,
@@ -907,74 +1110,43 @@ function dayStyles(allRuns: Run[]): string {
       (_, index) => `.c${index} { animation: c${index} ${seconds}s ease-out infinite }`,
     ),
     ...MOMENTS.map((_, index) => captionKeyframes(index)),
-    `.whirl { animation: whirl ${seconds}s linear infinite }`,
-    `@keyframes whirl { 0% { transform: rotate(0deg); opacity: 0 } ${drain * 0.14}% { opacity: 1 } ${drain * 0.74}% { opacity: 1 } ${drain}%, 100% { transform: rotate(1260deg); opacity: 0 } }`,
-    `.suck { animation: suck ${seconds}s ease-in infinite }`,
-    `@keyframes suck { 0% { transform: rotate(0deg) translateX(84px) scale(1); opacity: 1 } ${drain * 0.48}% { transform: rotate(760deg) translateX(0) scale(0.1); opacity: 1 } ${drain * 0.5}%, 100% { transform: rotate(760deg) translateX(0) scale(0); opacity: 0 } }`,
     `.sun { animation: sun ${seconds}s linear infinite }`,
     `@keyframes sun { ${sun} 100% { transform: translate(${sunX(last.hour)}px, ${sunY(last.hour)}px); opacity: 0 } }`,
     `.moon { opacity: 0; animation: moon ${seconds}s linear infinite }`,
     `@keyframes moon { ${moon} }`,
-    '@media (prefers-reduced-motion: reduce) { .f, .run, .txt, .c, .sun, .moon, .whirl, .suck { animation: none } .f4, .at4, .c4 { opacity: 1 } .f0:not(.f4) { opacity: 0 } }',
+    '@media (prefers-reduced-motion: reduce) { .f, .txt, .c, .sun, .moon { animation: none } .f4, .at4, .c4 { opacity: 1 } .f0:not(.f4) { opacity: 0 } }',
   ].join('\n')
 }
 
 function dayCycle(only?: number, stillOffset?: number): string {
   const animated = only === undefined
-  const seconds = MOMENTS.length * FRAME_SECONDS
   const allRuns = runs()
   const preview = stillOffset !== undefined
   const shown = allRuns.filter((run) => animated || (only >= run.start && only < run.end))
   const focus = MOMENTS[only ?? 4] as Moment
-  const sceneAnimations = sceneStyles.cssText.replace(/\.ht-scene\s*\{[^}]*\}/, '')
+  const sceneAnimations = sceneStyles.cssText
+    .replace(/\.ht-scene\s*\{[^}]*\}/, '')
+    .replace(/(ht-spin [^;]*?)steps\(\d+\)/, '$1linear')
+    .replaceAll(/steps\((?!1\))\d+\)/g, 'ease-in-out')
   const living = livingPlant(only, preview)
   const pills = livingPills(only)
+  const washer = livingLaundry(only)
   const css = animated
-    ? `${sceneAnimations}\n${dayStyles(allRuns)}\n${living.css}\n${pills.css}`
+    ? `${sceneAnimations}\n${dayStyles(allRuns)}\n${living.css}\n${pills.css}\n${washer.css}\n@media (prefers-reduced-motion: reduce) { .kf { animation: none } }`
     : ''
   const moments = MOMENTS.map((moment, index) => ({ moment, index })).filter(
     ({ index }) => animated || index === only,
   )
   const sky = moments.map(({ moment, index }) => skyMarkup(moment, index, `f f${index}`)).join('')
-  const boundary = (run: Run) => run.start * FRAME_SECONDS - DRAIN_SECONDS / 2 - seconds
-  const laundryRuns = allRuns.filter((run) => run.column === 1)
-  const under = animated
-    ? laundryRuns.map((run) => whirlMarkup(boundary(run), false)).join('')
-    : preview
-      ? whirlMarkup(0, true)
-      : ''
-  const scenes = COLUMNS.map((_, column) => {
-    if (column === 0) return `<g clip-path="url(#scene0)">${pills.markup}</g>`
-    if (column === 2) return `<g clip-path="url(#scene2)">${living.markup}</g>`
-    const kind = ['p', 'd', 'g'][column]
-    const pivot = origin(column)
-    const groups = shown
-      .filter((run) => run.column === column && !(preview && column === 1))
-      .map((run) => {
-        const at4 = run.start <= 4 && run.end > 4 ? ' at4' : ''
-        const style = animated ? ` style="${pivot}"` : ''
-        const content = sceneContent(
-          run.tile,
-          COLUMNS[column]!,
-          `t${column}r${run.start}-`,
-          animated,
-        )
-        return `<g class="run ${kind}${run.start}-${run.end}${at4}"${style}>${content}</g>`
-      })
-      .join('')
-    return `<g clip-path="url(#scene${column})">${groups}</g>`
-  }).join('')
+  const scenes = [pills, washer, living]
+    .map((scene, column) => `<g clip-path="url(#scene${column})">${scene.markup}</g>`)
+    .join('')
   const texts = shown
     .map((run) => {
       const at4 = run.start <= 4 && run.end > 4 ? ' at4' : ''
       return `<g class="txt t${run.start}-${run.end}${at4}">${textContent(run.tile, COLUMNS[run.column]!)}</g>`
     })
     .join('')
-  const over = animated
-    ? laundryRuns.map((run) => itemsMarkup(boundary(run), false)).join('')
-    : preview
-      ? itemsMarkup(0, true)
-      : ''
   const clips = COLUMNS.map((x, column) => {
     const left = x + TILE_W / 2 - SCENE_SIZE / 2
     return `<clipPath id="scene${column}"><rect x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" rx="${SCENE_RX}"/></clipPath>`
@@ -993,7 +1165,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
     animated || night
       ? `<g class="moon" transform="translate(820 52)"><circle r="24" fill="#e8e6f5"/><circle cx="9" cy="-5" r="20" fill="#1a2247"/></g>`
       : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round"><rect width="${WIDTH}" height="${HEIGHT}" rx="24"/></clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${under}${scenes}${over}${texts}${strip}${captions}</g></svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round"><rect width="${WIDTH}" height="${HEIGHT}" rx="24"/></clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
 }
 
 mkdirSync(OUT, { recursive: true })

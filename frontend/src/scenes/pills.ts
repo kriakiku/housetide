@@ -44,6 +44,9 @@ const SLOTS: ReadonlyArray<readonly [number, number]> = [
 
 const STALE_TOP = '#8f8a84'
 const STALE_BOTTOM = '#aaa497'
+export const MISSED_TOP = mix(C.coral, STALE_TOP, 0.5)
+export const MISSED_BOTTOM = mix(C.cream, STALE_BOTTOM, 0.5)
+export const MISSED_SHINE = 0.35
 const NEGLECT_AT = [0.15, 0.45, 0.75] as const
 const GLOW_AT = [0.25, 0.5, 0.75] as const
 
@@ -97,8 +100,12 @@ function well(x: number, y: number, popped: boolean): Art {
     : svg`<rect x=${x - 13.5} y=${y - 25.5} width="27" height="51" rx="13.5" fill=${C.metal} />`
 }
 
-function stale(x: number, y: number): Art {
-  return at(x, y, capsule(STALE_TOP, STALE_BOTTOM, 0.15), -14, 0.84)
+function missed(x: number, y: number, fade: number): Art {
+  return at(
+    x,
+    y,
+    capsule(mix(MISSED_TOP, STALE_TOP, fade), mix(MISSED_BOTTOM, STALE_BOTTOM, fade), MISSED_SHINE),
+  )
 }
 
 function glass(x: number, y: number): Art {
@@ -180,7 +187,8 @@ export function pills(scene: SceneView, options?: SceneOptions): TemplateResult 
     if (i === parts.day) return []
     const cell = parts.cells[i]
     if (cell === 'taken') return [part('empty-well', well(x, y, true), i)]
-    if (cell === 'missed') return [part('missed-pill', [well(x, y, false), stale(x, y)], i)]
+    if (cell === 'missed')
+      return [part('missed-pill', [well(x, y, false), missed(x, y, parts.fade)], i)]
     return [part('pill', [well(x, y, false), at(x, y, capsule(pillTop, pillBottom))], i)]
   })
 
