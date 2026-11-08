@@ -63,13 +63,13 @@ show: today
 layout: list
 ```
 
-| Option       | Default | Description                                 |
-| ------------ | ------- | ------------------------------------------- |
-| `tasks`      | all     | Task ids to show.                           |
-| `show`       | `today` | `today` or `all`.                           |
-| `layout`     | `list`  | `list` for rows, `scenes` for large scenes. |
-| `title`      | none    | A heading.                                  |
-| `animations` | `true`  | Set to `false` for low-powered screens.     |
+| Option       | Default | Description                                            |
+| ------------ | ------- | ------------------------------------------------------ |
+| `tasks`      | all     | Task ids to show.                                      |
+| `show`       | `today` | `today` or `all`.                                      |
+| `layout`     | `list`  | `list` for compact strips, `scenes` for picture tiles. |
+| `title`      | none    | A heading.                                             |
+| `animations` | `true`  | Set to `false` for low-powered screens.                |
 
 ## For your automations
 

@@ -116,15 +116,7 @@ export class HousetideCard extends LitElement {
       .tiles {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 12px;
-      }
-
-      .tiles .tile {
-        background: var(--ht-surface-alt);
-      }
-
-      .tiles .undo {
-        background: var(--ht-surface-alt);
+        gap: 10px;
       }
 
       .empty {
@@ -165,27 +157,12 @@ export class HousetideCard extends LitElement {
       }
 
       @container (max-width: 340px) {
-        .row {
-          grid-template-columns: 56px minmax(0, 1fr) auto;
-          gap: 8px;
-        }
-
-        .row .thumb {
-          width: 56px;
-          height: 56px;
-        }
-
         .row .go-wrap {
-          width: 88px;
+          width: 80px;
         }
 
         .row .undo {
-          right: 96px;
-        }
-
-        .row .auto {
-          font-size: 0;
-          gap: 0;
+          right: 98px;
         }
       }
     `,

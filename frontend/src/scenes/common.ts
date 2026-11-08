@@ -7,6 +7,7 @@ export interface SceneOptions {
   animations?: boolean
   day?: number
   label?: string
+  bleed?: boolean
 }
 
 export type SceneRenderer = (scene: SceneView, options?: SceneOptions) => TemplateResult
@@ -141,7 +142,9 @@ export function superellipsePath(x: number, y: number, w: number, h: number, r: 
   return `M${body.slice(1)}Z`
 }
 
+export const BLEED_HEIGHT = 192
 export const TILE = superellipsePath(0, 0, 200, 200, 28)
+const BLEED_FLOOR = 'M0 168H200V200H0Z'
 export const FLOOR = `M0 168H200V172${corner(172, 172, 28, 0)}${corner(28, 172, 28, 90)}Z`
 
 export function frame(
@@ -152,25 +155,37 @@ export function frame(
   floor = true,
 ): TemplateResult {
   const animated = options?.animations !== false
+  const bleed = options?.bleed === true
   const tile = tileFor(scene.state, scene.stink)
   const classes = `ht-scene ht-scene-${name}${animated ? ' ht-animated' : ''}`
   const label = options?.label ?? name
   return html`<svg
     class=${classes}
-    viewBox="0 0 200 200"
+    viewBox=${bleed ? `0 0 200 ${BLEED_HEIGHT}` : '0 0 200 200'}
     role="img"
     aria-label=${label}
     data-scene=${name}
     data-state=${scene.state}
   >
-    ${svg`<path data-part="tile" d=${TILE} fill=${tile.wall} />`}
+    ${
+      bleed
+        ? svg`<rect data-part="tile" width="200" height="200" fill=${tile.wall} />`
+        : svg`<path data-part="tile" d=${TILE} fill=${tile.wall} />`
+    }
     ${
       floor
-        ? svg`<circle cx="100" cy="98" r="86" fill="#fff" opacity=".05" /><path data-part="floor" d=${FLOOR} fill=${tile.floor} />`
+        ? svg`<circle cx="100" cy="98" r="86" fill="#fff" opacity=".05" /><path data-part="floor" d=${bleed ? BLEED_FLOOR : FLOOR} fill=${tile.floor} />`
         : nothing
     }
     ${art}
   </svg>`
+}
+
+export function sceneSurface(scene: SceneView): { wall: string; floor: string } {
+  const drawn = scene.name === 'laundry' || scene.name === 'pills' || scene.name === 'plant'
+  if (drawn) return tileFor(scene.state, scene.stink)
+  const { wall } = tileFor(scene.state, 0)
+  return { wall, floor: wall }
 }
 
 export function shadow(x: number, y: number, rx: number, opacity = 0.28): SVGTemplateResult {

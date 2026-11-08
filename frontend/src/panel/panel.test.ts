@@ -197,6 +197,18 @@ describe('navigation', () => {
     expect(tabFromPath('/nope')).toBe('today')
   })
 
+  test('today switches between tiles and strips and remembers it', async () => {
+    localStorage.removeItem('housetide.today.layout')
+    const panel = await mount(socketWith(payload([view('due')])))
+    one(today(panel), '.tile .art svg[viewBox="0 0 200 192"]')
+    click(today(panel), '[data-layout="list"]')
+    await settle(panel)
+    one(today(panel), '.row[data-status="due"]')
+    expect(today(panel).querySelector('.tile')).toBeNull()
+    expect(localStorage.getItem('housetide.today.layout')).toBe('list')
+    localStorage.removeItem('housetide.today.layout')
+  })
+
   test('switches tabs and keeps one subscription', async () => {
     const socket = socketWith(payload([view('due')]))
     const panel = await mount(socket)

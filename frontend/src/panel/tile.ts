@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 import { styleMap } from 'lit/directives/style-map.js'
 
 import type { I18n } from '../i18n.ts'
+import { sceneSurface } from '../scenes/common.ts'
 import { renderScene } from '../scenes/index.ts'
 import type { TaskView } from '../types.ts'
 import { compareKeys, isEarly, orderKey } from './live.ts'
@@ -20,6 +21,8 @@ export const ICONS = {
   trash: 'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z',
   alert: 'M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z',
   chevron: 'M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z',
+  list: 'M3,4H21V8H3V4M3,10H21V14H3V10M3,16H21V20H3V16Z',
+  tiles: 'M3,3H11V11H3V3M13,3H21V11H13V3M3,13H11V21H3V13M13,13H21V21H13V13Z',
 } as const
 
 export function icon(name: keyof typeof ICONS): TemplateResult {
@@ -72,10 +75,12 @@ function readableOn(color: string): string | undefined {
   return luminance > 150 ? '#14182a' : '#ffffff'
 }
 
-function accent(view: TaskView): Record<string, string> {
-  if (!view.color) return {}
+function surface(view: TaskView): Record<string, string> {
+  const { wall, floor } = sceneSurface(view.scene)
+  const base = { '--ht-wall': wall, '--ht-floor': floor }
+  if (!view.color) return base
   const on = readableOn(view.color)
-  return { '--ht-task': view.color, ...(on ? { '--ht-on-task': on } : {}) }
+  return { ...base, '--ht-task': view.color, ...(on ? { '--ht-on-task': on } : {}) }
 }
 
 function advanceLabel(view: TaskView, i18n: I18n): string {
@@ -87,6 +92,7 @@ function advanceLabel(view: TaskView, i18n: I18n): string {
 function scene(view: TaskView, ctx: TaskContext): TemplateResult {
   return renderScene(view.scene, {
     animations: ctx.animations,
+    bleed: true,
     day: ctx.day,
     label: `${view.title}: ${ctx.i18n.t(`status_${view.status}`)}`,
   })
@@ -124,9 +130,13 @@ function goButton(view: TaskView, ctx: TaskContext): TemplateResult {
   </button>`
 }
 
+function undoVisible(view: TaskView, ctx: TaskContext): boolean {
+  return view.can_undo && ctx.tracker.isRecent(view.task_id)
+}
+
 function undoButton(view: TaskView, ctx: TaskContext): TemplateResult | typeof nothing {
   const { i18n, tracker } = ctx
-  if (!view.can_undo || !tracker.isRecent(view.task_id)) return nothing
+  if (!undoVisible(view, ctx)) return nothing
   return html`<button
     class="undo ${ctx.animations ? 'enter' : ''}"
     data-action="undo"
@@ -191,59 +201,78 @@ function classes(view: TaskView, ctx: TaskContext, base: string): string {
   return `${base} is-${view.status}${celebration ? ` pop-${celebration}` : ''}`
 }
 
-export function renderRow(view: TaskView, ctx: TaskContext): TemplateResult {
+function skipButton(
+  view: TaskView,
+  ctx: TaskContext,
+  allowed: boolean,
+): TemplateResult | typeof nothing {
+  const { i18n, tracker } = ctx
+  if (!allowed || !view.can_skip || !needsAttention(view)) return nothing
+  return html`<button
+    class="skip"
+    data-action="skip"
+    aria-label="${i18n.t('action_skip')}: ${view.title}"
+    ?disabled=${ctx.offline || tracker.isPending(view.task_id)}
+    @click=${(): void => {
+      void tracker.skip(view)
+    }}
+  >
+    ${icon('skip')}
+  </button>`
+}
+
+function textBlock(view: TaskView, ctx: TaskContext): TemplateResult {
+  const failed = ctx.tracker.error(view.task_id) !== undefined
+  return html`<div class="text">
+    <div class="title">${view.title}</div>
+    <div class="meta">
+      ${failed ? nothing : stageLine(view, ctx)}
+      <div class="when">${dueLine(view, ctx)}</div>
+    </div>
+  </div>`
+}
+
+function actions(view: TaskView, ctx: TaskContext, skip: boolean): TemplateResult {
+  return html`<div class="actions">
+    <div class="go-wrap">${goButton(view, ctx)}${burst(view, ctx)}</div>
+    ${skipButton(view, ctx, skip)}
+  </div>`
+}
+
+export interface TaskOptions {
+  skip?: boolean
+}
+
+export function renderRow(
+  view: TaskView,
+  ctx: TaskContext,
+  options: TaskOptions = {},
+): TemplateResult {
   return html`<div
     class=${classes(view, ctx, 'row')}
     data-task=${view.task_id}
     data-status=${view.status}
-    style=${styleMap(accent(view))}
+    style=${styleMap(surface(view))}
   >
     <div class="thumb">${scene(view, ctx)} ${iconBadge(view)}</div>
-    <div class="text">
-      <div class="title">${view.title}</div>
-      ${stageLine(view, ctx)} ${dueLine(view, ctx)}
-    </div>
-    ${undoButton(view, ctx)}
-    <div class="go-wrap">${goButton(view, ctx)}${burst(view, ctx)}</div>
+    ${textBlock(view, ctx)} ${undoButton(view, ctx)}
+    ${actions(view, ctx, options.skip === true && !undoVisible(view, ctx))}
   </div>`
 }
 
 export function renderTile(
   view: TaskView,
   ctx: TaskContext,
-  options: { skip?: boolean } = {},
+  options: TaskOptions = {},
 ): TemplateResult {
-  const { i18n, tracker } = ctx
-  const showSkip = options.skip === true && view.can_skip && needsAttention(view)
   return html`<article
     class=${classes(view, ctx, 'tile')}
     data-task=${view.task_id}
     data-status=${view.status}
-    style=${styleMap(accent(view))}
+    style=${styleMap(surface(view))}
   >
     <div class="art">${scene(view, ctx)} ${iconBadge(view)} ${undoButton(view, ctx)}</div>
-    <div class="text">
-      <div class="title">${view.title}</div>
-      ${stageLine(view, ctx)} ${dueLine(view, ctx)}
-    </div>
-    <div class="actions">
-      <div class="go-wrap">${goButton(view, ctx)}${burst(view, ctx)}</div>
-      ${
-        showSkip
-          ? html`<button
-              class="skip"
-              data-action="skip"
-              aria-label="${i18n.t('action_skip')}: ${view.title}"
-              ?disabled=${ctx.offline || tracker.isPending(view.task_id)}
-              @click=${(): void => {
-                void tracker.skip(view)
-              }}
-            >
-              ${icon('skip')}
-            </button>`
-          : nothing
-      }
-    </div>
+    ${textBlock(view, ctx)} ${actions(view, ctx, options.skip === true)}
   </article>`
 }
 
@@ -263,24 +292,31 @@ export const iconStyles = css`
 `
 
 export const taskStyles = css`
+  .list {
+    display: grid;
+    gap: 8px;
+  }
+
   .row,
   .tile {
+    --ht-fg: #f4f2fa;
+    --ht-muted: rgba(255, 255, 255, 0.74);
+    --ht-divider: rgba(255, 255, 255, 0.28);
     position: relative;
     box-sizing: border-box;
+    border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
     color: var(--ht-fg);
   }
 
   .row {
     display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) auto;
+    grid-template-columns: 68px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
-    height: 88px;
-    padding: 8px 0;
-  }
-
-  .row + .row {
-    border-top: 1px solid var(--ht-divider);
+    gap: 10px;
+    height: 68px;
+    padding-right: 10px;
+    background: linear-gradient(var(--ht-wall) 86%, var(--ht-floor) 86%);
   }
 
   .thumb,
@@ -301,6 +337,21 @@ export const taskStyles = css`
     aspect-ratio: 1;
   }
 
+  .row .thumb {
+    width: 68px;
+    height: 68px;
+    border-radius: calc(var(--ht-radius) * 1.3) 0 0 calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+    background: none;
+  }
+
+  .tile .art {
+    aspect-ratio: 200 / 192;
+    border-radius: calc(var(--ht-radius) * 1.3) calc(var(--ht-radius) * 1.3) 0 0;
+    corner-shape: var(--ht-corner);
+    background: none;
+  }
+
   .badge {
     position: absolute;
     right: 3px;
@@ -311,7 +362,7 @@ export const taskStyles = css`
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: var(--ht-surface);
+    background: rgba(16, 20, 38, 0.55);
     color: var(--ht-task, var(--ht-fg));
     --mdc-icon-size: 16px;
   }
@@ -344,14 +395,40 @@ export const taskStyles = css`
     line-height: 1.3;
   }
 
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 14px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.8125rem;
+  }
+
+  .when {
+    position: relative;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .when::before {
+    content: '·';
+    position: absolute;
+    left: -9px;
+    color: var(--ht-muted);
+    line-height: 20px;
+  }
+
   .stage {
     display: flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: 6px;
     min-width: 0;
+    max-width: 100%;
     height: 20px;
+    overflow: hidden;
     color: var(--ht-muted);
-    font-size: 0.875rem;
   }
 
   .auto {
@@ -359,8 +436,8 @@ export const taskStyles = css`
     flex: none;
     align-items: center;
     gap: 2px;
-    color: var(--ht-accent);
-    font-size: 0.75rem;
+    color: #bfe3ff;
+    font-size: 0;
     font-weight: 600;
   }
 
@@ -393,22 +470,21 @@ export const taskStyles = css`
   .due {
     height: 20px;
     color: var(--ht-muted);
-    font-size: 0.875rem;
     line-height: 20px;
   }
 
   .is-due .due,
   .is-in_progress .due {
-    color: var(--ht-accent);
+    color: #ffd98a;
   }
 
   .is-overdue .due,
   .due.failed {
-    color: var(--ht-danger);
+    color: #ffb4a8;
   }
 
   .is-clean .due {
-    color: var(--ht-success);
+    color: #a7f0c9;
   }
 
   .go-wrap {
@@ -418,7 +494,8 @@ export const taskStyles = css`
   }
 
   .row .go-wrap {
-    width: 104px;
+    flex: none;
+    width: 92px;
   }
 
   .go {
@@ -429,7 +506,7 @@ export const taskStyles = css`
     justify-content: center;
     gap: 6px;
     width: 100%;
-    height: 64px;
+    height: 48px;
     padding: 0 10px;
     border: 2px solid transparent;
     border-radius: calc(var(--ht-radius) * 1.2);
@@ -457,8 +534,8 @@ export const taskStyles = css`
   }
 
   .go.quiet {
-    border-color: var(--ht-task, var(--ht-divider));
-    background: transparent;
+    border-color: var(--ht-task, transparent);
+    background: rgba(255, 255, 255, 0.16);
     color: var(--ht-fg);
   }
 
@@ -498,9 +575,9 @@ export const taskStyles = css`
     width: 44px;
     height: 44px;
     padding: 0;
-    border: 1px solid var(--ht-divider);
+    border: none;
     border-radius: 50%;
-    background: var(--ht-surface);
+    background: rgba(16, 20, 38, 0.55);
     color: var(--ht-fg);
     cursor: pointer;
     touch-action: manipulation;
@@ -518,8 +595,8 @@ export const taskStyles = css`
   }
 
   .row .undo {
-    top: 22px;
-    right: 112px;
+    top: 12px;
+    right: 110px;
   }
 
   .tile .undo {
@@ -529,17 +606,22 @@ export const taskStyles = css`
 
   .tile {
     display: grid;
-    grid-template-rows: auto auto auto;
-    gap: 10px;
-    padding: 10px;
-    border-radius: calc(var(--ht-radius) * 1.3);
-    corner-shape: var(--ht-corner);
-    background: var(--ht-surface);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    background: var(--ht-floor);
     box-shadow: var(--ha-card-box-shadow, none);
   }
 
+  .tile .text {
+    padding: 2px 12px 0;
+  }
+
+  .tile .actions {
+    padding: 8px 12px 12px;
+  }
+
   .tile .title {
-    font-size: 1.1875rem;
+    font-size: 1.0625rem;
   }
 
   .actions {
@@ -548,20 +630,15 @@ export const taskStyles = css`
     align-items: center;
   }
 
+  .row.skeleton,
+  .tile.skeleton,
   .skeleton {
     background: var(--ht-surface-alt);
     opacity: 0.5;
   }
 
-  .row.skeleton {
-    margin-block: 4px;
-    height: 80px;
-    border-radius: var(--ht-radius);
-    corner-shape: var(--ht-corner);
-  }
-
   .tile.skeleton {
-    height: 340px;
+    height: 280px;
   }
 
   .burst {
@@ -617,6 +694,12 @@ export const taskStyles = css`
     background: #ff7a6b;
   }
 
+  @media (max-width: 480px) {
+    .row .skip {
+      display: none;
+    }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .burst i {
       animation: ht-burst 0.8s steps(16) forwards;
@@ -626,8 +709,8 @@ export const taskStyles = css`
       animation: ht-appear 0.2s steps(5) both;
     }
 
-    .pop-done .thumb,
-    .pop-done .art {
+    .pop-done .thumb svg,
+    .pop-done .art svg {
       animation: ht-pop 0.5s steps(10);
     }
 

@@ -5,14 +5,12 @@ import {
   COLORS,
   drop,
   face,
-  FLOOR,
   mix,
   motion,
   shadow,
   sparkle,
   stenchLines,
   superellipsePath,
-  TILE,
   fly,
   tileFor,
 } from '../frontend/src/scenes/common.ts'
@@ -309,46 +307,39 @@ const label = (x: number, y: number, size: number, fill: string, value: string, 
 
 function buttonMarkup(tile: Tile, x: number, y: number, width: number): string {
   const palette = {
-    loud: ['#7f77dd', '#ffffff'],
-    quiet: ['#34323f', '#c7c4d3'],
-    auto: ['#2c4257', '#9fd6f7'],
-    done: ['#24483f', '#8fe0c0'],
+    loud: ['#7f77dd', '#ffffff', 1],
+    quiet: ['#ffffff', '#f4f2fa', 0.16],
+    auto: ['#ffffff', '#cfe9ff', 0.16],
+    done: ['#4fd18b', '#c9f5dd', 0.28],
   }[tile.tone]
-  const [background, foreground] = palette as [string, string]
+  const [background, foreground, opacity] = palette as [string, string, number]
   const center = x + width / 2
   const bolt =
     tile.tone === 'auto'
       ? `<path transform="translate(${center - 60} ${y + 10}) scale(0.75)" d="${BOLT}" fill="${foreground}"/>`
       : ''
   return (
-    `${box(x, y, width, 38, 19, `fill="${background}"`)}${bolt}` +
+    `${box(x, y, width, 38, 12, `fill="${background}" fill-opacity="${opacity}"`)}${bolt}` +
     label(center, y + 24, 14.5, foreground, tile.button, 'text-anchor="middle" font-weight="600"')
   )
 }
 
-const TILE_W = 272
-const TILE_H = 324
+const TILE_W = 240
+const TILE_H = 326
+const SCENE_UNITS = ((TILE_H * 200) / TILE_W).toFixed(2)
 const PANEL_Y = 96
 const TILES_Y = PANEL_Y + 56
-const COLUMNS = [56, 344, 632]
-const SCENE_SIZE = 176
-const SCENE_Y = TILES_Y + 12
-const SCENE_RX = 24.64
+const COLUMNS = [100, 360, 620]
+const SCENE_SIZE = 240
+const SCENE_Y = TILES_Y
+const SCENE_RX = 18
 
 function textContent(tile: Tile, x: number): string {
-  const center = x + TILE_W / 2
+  const left = x + 14
   return [
-    label(
-      center,
-      TILES_Y + 215,
-      18,
-      '#f2f0f8',
-      tile.title,
-      'text-anchor="middle" font-weight="600"',
-    ),
-    label(center, TILES_Y + 238, 14, '#aba8b8', tile.stage, 'text-anchor="middle"'),
-    label(center, TILES_Y + 259, 14, '#d9d6e3', tile.status, 'text-anchor="middle"'),
-    buttonMarkup(tile, x + 16, TILES_Y + 274, TILE_W - 32),
+    label(left, TILES_Y + 250, 17, '#f4f2fa', tile.title, 'font-weight="600"'),
+    label(left, TILES_Y + 270, 12.5, '#ffffff', `${tile.stage} · ${tile.status}`, 'opacity="0.76"'),
+    buttonMarkup(tile, x + 12, TILES_Y + 280, TILE_W - 24),
   ].join('')
 }
 
@@ -396,15 +387,12 @@ function chromeMarkup(): string {
       'text-anchor="middle" font-weight="600"',
     )
   return [
-    box(40, PANEL_Y, 880, 396, 20, 'fill="#1a1922"'),
-    label(64, PANEL_Y + 34, 19, '#f2f0f8', 'Housetide', 'font-weight="600"'),
-    tab(716, 'Today', true),
-    tab(790, 'Tasks', false),
-    tab(864, 'History', false),
-    ...COLUMNS.map(
-      (x) =>
-        `${box(x, TILES_Y, TILE_W, TILE_H, 16, 'fill="#25232f"')}${box(x + TILE_W / 2 - SCENE_SIZE / 2, SCENE_Y, SCENE_SIZE, SCENE_SIZE, SCENE_RX, 'fill="#1b1a24"')}`,
-    ),
+    box(80, PANEL_Y, 800, 396, 20, 'fill="#1a1922"'),
+    label(104, PANEL_Y + 34, 19, '#f2f0f8', 'Housetide', 'font-weight="600"'),
+    tab(676, 'Today', true),
+    tab(750, 'Tasks', false),
+    tab(824, 'History', false),
+    ...COLUMNS.map((x) => box(x, TILES_Y, TILE_W, TILE_H, SCENE_RX, 'fill="#1b1a24"')),
   ].join('')
 }
 
@@ -542,7 +530,7 @@ function backdrop(tiles: Tile[], attrs: Timeline['attrs']): string {
   const colors = tiles.map((tile) => tileFor(tile.scene.state as SceneState, tile.scene.stink ?? 0))
   const wall = colors.map((color) => color.wall)
   const floor = colors.map((color) => color.floor)
-  return `<path d="${TILE}" ${attrs({ fill: wall })}/><circle cx="100" cy="98" r="86" fill="#fff" opacity=".05"/><path d="${FLOOR}" ${attrs({ fill: floor })}/>`
+  return `<rect width="200" height="${SCENE_UNITS}" ${attrs({ fill: wall })}/><circle cx="100" cy="98" r="86" fill="#fff" opacity=".05"/><path d="M0 168H200V${SCENE_UNITS}H0Z" ${attrs({ fill: floor })}/>`
 }
 
 const PILL_SLOTS = [
@@ -643,7 +631,7 @@ function livingPills(only: number | undefined): { markup: string; css: string } 
     twinkles,
   ].join('')
   return {
-    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${TILE_H}" viewBox="0 0 200 ${SCENE_UNITS}" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
     css: rules.join('\n'),
   }
 }
@@ -927,7 +915,7 @@ function livingLaundry(only: number | undefined): { markup: string; css: string 
   ].join('')
   const left = centerX(1) - SCENE_SIZE / 2
   return {
-    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${TILE_H}" viewBox="0 0 200 ${SCENE_UNITS}" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
     css: rules.join('\n'),
   }
 }
@@ -1082,7 +1070,7 @@ function livingPlant(only: number | undefined, showCan: boolean): { markup: stri
     can,
   ].join('')
   return {
-    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${TILE_H}" viewBox="0 0 200 ${SCENE_UNITS}" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
     css: rules.join('\n'),
   }
 }
@@ -1152,7 +1140,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
     .join('')
   const clips = COLUMNS.map((x, column) => {
     const left = x + TILE_W / 2 - SCENE_SIZE / 2
-    return `<clipPath id="scene${column}">${box(left, SCENE_Y, SCENE_SIZE, SCENE_SIZE, SCENE_RX)}</clipPath>`
+    return `<clipPath id="scene${column}">${box(left, SCENE_Y, SCENE_SIZE, TILE_H, SCENE_RX)}</clipPath>`
   }).join('')
   const strip = `<rect y="508" width="${WIDTH}" height="64" fill="#14131b" opacity="0.72"/>`
   const captions = moments.map(({ moment, index }) => captionMarkup(moment, index)).join('')

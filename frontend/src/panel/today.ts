@@ -16,8 +16,10 @@ import {
 } from './live.ts'
 import { weekdayIndex } from './model.ts'
 import {
+  icon,
   iconStyles,
   needsAttention,
+  renderRow,
   renderSkeleton,
   renderTile,
   selectViews,
@@ -26,6 +28,25 @@ import {
 import type { TaskContext } from './tile.ts'
 
 const MAX_LATER = 8
+const LAYOUT_KEY = 'housetide.today.layout'
+
+type TodayLayout = 'scenes' | 'list'
+
+function storedLayout(): TodayLayout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'scenes'
+  } catch {
+    return 'scenes'
+  }
+}
+
+function storeLayout(layout: TodayLayout): void {
+  try {
+    localStorage.setItem(LAYOUT_KEY, layout)
+  } catch {
+    return
+  }
+}
 
 export class HousetideToday extends LitElement {
   static override properties: PropertyDeclarations = {
@@ -34,6 +55,7 @@ export class HousetideToday extends LitElement {
     now: { attribute: false },
     animations: { attribute: false },
     active: { attribute: false },
+    layout: { state: true },
   }
 
   static override styles = [
@@ -70,8 +92,50 @@ export class HousetideToday extends LitElement {
 
       .tiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 10px;
+      }
+
+      .side {
+        display: flex;
+        align-items: center;
         gap: 12px;
+      }
+
+      .views {
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 999px;
+        corner-shape: var(--ht-corner);
+        background: var(--ht-surface);
+      }
+
+      .view {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 36px;
+        padding: 0;
+        border: none;
+        border-radius: 999px;
+        corner-shape: var(--ht-corner);
+        background: transparent;
+        color: var(--ht-muted);
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .view[aria-pressed='true'] {
+        background: var(--ht-accent);
+        color: var(--ht-on-accent);
+      }
+
+      .view:focus-visible {
+        outline: 2px solid var(--ht-accent);
+        outline-offset: 2px;
       }
 
       .clear {
@@ -137,6 +201,7 @@ export class HousetideToday extends LitElement {
   declare now: Date
   declare animations: boolean
   declare active: boolean
+  declare layout: TodayLayout
 
   private readonly tracker: ActionTracker
 
@@ -146,11 +211,36 @@ export class HousetideToday extends LitElement {
     this.now = new Date()
     this.animations = true
     this.active = true
+    this.layout = storedLayout()
     this.tracker = new ActionTracker(this, () => this.hass)
   }
 
   protected override shouldUpdate(): boolean {
     return this.active
+  }
+
+  private choose(layout: TodayLayout): void {
+    this.layout = layout
+    storeLayout(layout)
+  }
+
+  private renderViews(ctx: TaskContext): TemplateResult {
+    const option = (layout: TodayLayout, name: 'tiles' | 'list', label: string): TemplateResult =>
+      html`<button
+        class="view"
+        data-layout=${layout}
+        aria-label=${label}
+        aria-pressed=${this.layout === layout ? 'true' : 'false'}
+        @click=${(): void => {
+          this.choose(layout)
+        }}
+      >
+        ${icon(name)}
+      </button>`
+    return html`<div class="views" role="group" aria-label=${ctx.i18n.t('config_layout')}>
+      ${option('scenes', 'tiles', ctx.i18n.t('config_layout_scenes'))}
+      ${option('list', 'list', ctx.i18n.t('config_layout_list'))}
+    </div>`
   }
 
   private later(views: readonly TaskView[], shown: readonly TaskView[]): TaskView[] {
@@ -199,7 +289,9 @@ export class HousetideToday extends LitElement {
     const { hass, state } = this
     if (!hass) return nothing
     if (!state) {
-      return html`<div class="tiles" aria-busy="true">${renderSkeleton(4, 'tile')}</div>`
+      return this.layout === 'list'
+        ? html`<div class="list" aria-busy="true">${renderSkeleton(4, 'row')}</div>`
+        : html`<div class="tiles" aria-busy="true">${renderSkeleton(4, 'tile')}</div>`
     }
     const i18n = localeOf(hass)
     const ctx: TaskContext = {
@@ -214,16 +306,22 @@ export class HousetideToday extends LitElement {
     const attention = shown.filter((view) => needsAttention(view)).length
     return html`<div class="summary">
         <span class="count">${attention > 0 ? i18n.plural('tasks_due', attention) : nothing}</span>
-        <span class="date">${i18n.date(this.now)}</span>
+        <span class="side">
+          <span class="date">${i18n.date(this.now)}</span>
+          ${this.renderViews(ctx)}
+        </span>
       </div>
       ${
         shown.length === 0
           ? this.renderClear(ctx)
-          : html`<div class="tiles">
+          : html`<div class=${this.layout === 'list' ? 'list' : 'tiles'}>
               ${repeat(
                 shown,
                 (view) => view.task_id,
-                (view) => renderTile(view, ctx, { skip: true }),
+                (view) =>
+                  this.layout === 'list'
+                    ? renderRow(view, ctx, { skip: true })
+                    : renderTile(view, ctx, { skip: true }),
               )}
             </div>`
       }

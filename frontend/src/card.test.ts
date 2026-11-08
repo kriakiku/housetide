@@ -131,13 +131,13 @@ describe('icons', () => {
 describe('rows are stable', () => {
   test('height is fixed in css', () => {
     const text = HousetideCard.styles.map((sheet) => sheet.cssText).join('')
-    expect(text).toMatch(/\.row \{[^}]*height: 88px/)
+    expect(text).toMatch(/\.row \{[^}]*height: 68px/)
   })
 
   test('all touch targets are large enough', () => {
     const text = HousetideCard.styles.map((sheet) => sheet.cssText).join('')
     expect(text).toMatch(/\.undo,\s*\.skip \{[^}]*width: 44px;[^}]*height: 44px/)
-    expect(text).toMatch(/\.go \{[^}]*height: 64px/)
+    expect(text).toMatch(/\.go \{[^}]*height: 48px/)
   })
 
   test('order holds when the first task starts', async () => {
