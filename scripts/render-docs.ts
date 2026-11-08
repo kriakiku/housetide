@@ -1,7 +1,18 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import {
+  COLORS,
+  drop,
+  face,
+  frame,
+  mix,
+  motion,
+  shadow,
+  sparkle,
+} from '../frontend/src/scenes/common.ts'
 import { renderScene } from '../frontend/src/scenes/index.ts'
+import { plantParts, type PlantParts } from '../frontend/src/scenes/plant.ts'
 import { sceneStyles } from '../frontend/src/styles.ts'
 
 const OUT = join(import.meta.dir, '..', 'docs')
@@ -341,7 +352,6 @@ function runs(): Run[] {
 
 const DRAIN_SECONDS = 1.5
 const CENTER_Y = SCENE_Y + SCENE_SIZE / 2
-const BOTTOM_Y = SCENE_Y + SCENE_SIZE
 const centerX = (column: number) => COLUMNS[column]! + TILE_W / 2
 const origin = (column: number, y = CENTER_Y) => `transform-origin:${centerX(column)}px ${y}px`
 
@@ -480,28 +490,6 @@ function drainKeyframes({ start, end }: Run): string {
   )
 }
 
-function plantKeyframes({ start, end }: Run): string {
-  const flat = 'opacity: 1; transform: scale(1.3, 0.02)'
-  const here = 'opacity: 1; transform: scale(1, 1)'
-  return stops(
-    `g${start}-${end}`,
-    start,
-    end,
-    [
-      [0, flat],
-      [0.26, 'opacity: 1; transform: scale(0.88, 1.18)'],
-      [0.46, 'opacity: 1; transform: scale(1.07, 0.93)'],
-      [0.64, 'opacity: 1; transform: scale(0.97, 1.03)'],
-      [0.8, here],
-    ],
-    [
-      [-0.6, here],
-      [-0.3, 'opacity: 1; transform: scale(0.9, 1.12)'],
-      [0, flat],
-    ],
-  )
-}
-
 function textKeyframes({ start, end }: Run): string {
   return stops(
     `t${start}-${end}`,
@@ -541,6 +529,224 @@ function captionKeyframes(index: number): string {
   return `@keyframes c${index} { 0%, ${start}% { ${hidden} } ${start + glide}%, ${end - glide}% { ${shown} } ${end}%, 100% { ${left} } }`
 }
 
+interface Tracks {
+  fill?: string[]
+  stroke?: string[]
+  opacity?: string[]
+  transform?: string[]
+}
+
+const LEAF_PATH = 'M0 0C-14-7-15-27 0-40C15-27 14-7 0 0Z'
+const BENDS = [0.12, 0.65, 1.3, 1.95, 2.55]
+const JOINT = 19.5
+
+function livingPlant(only: number | undefined, showCan: boolean): { markup: string; css: string } {
+  const animated = only === undefined
+  const focus = only ?? 4
+  const count = MOMENTS.length
+  const seconds = count * FRAME_SECONDS
+  const blend = (1.2 / seconds) * 100
+  const tiles = MOMENTS.map((moment) => moment.plant)
+  const states = tiles.map((tile) =>
+    plantParts({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never),
+  )
+  const series = <T>(pick: (state: PlantParts) => T) => states.map(pick)
+  const decay = (state: PlantParts) => state.wilt / 3
+  const colors = (from: string, to: string) => series((state) => mix(from, to, decay(state)))
+  const known = new Map<string, string>()
+  const rules: string[] = []
+
+  const classFor = (tracks: Tracks): string => {
+    const key = JSON.stringify(tracks)
+    const existing = known.get(key)
+    if (existing) return existing
+    const name = `k${known.size}`
+    known.set(key, name)
+    const at = (index: number) =>
+      (Object.entries(tracks) as Array<[string, string[]]>)
+        .map(([property, values]) => `${property}: ${values[index]}`)
+        .join('; ')
+    const frames = MOMENTS.flatMap((_, index) => {
+      const previous = (index + count - 1) % count
+      return [
+        `${percent(index)}% { ${at(previous)} }`,
+        `${percent(index) + blend}% { ${at(index)} }`,
+      ]
+    })
+    rules.push(`.${name} { animation: ${name} ${seconds}s ease-in-out infinite }`)
+    rules.push(`@keyframes ${name} { ${frames.join(' ')} 100% { ${at(count - 1)} } }`)
+    return name
+  }
+
+  const attrs = (tracks: Tracks, delay = 0): string => {
+    const list = (Object.entries(tracks) as Array<[string, string[]]>).map(([property, values]) => {
+      const value = values[focus] as string
+      return `${property}="${property === 'transform' ? value.replaceAll('deg', '').replaceAll('px', '') : value}"`
+    })
+    if (animated) {
+      list.push(`class="kf ${classFor(tracks)}"`)
+      if (delay) list.push(`style="animation-delay:${delay.toFixed(2)}s"`)
+    }
+    return list.join(' ')
+  }
+
+  const show = (pick: (state: PlantParts) => boolean) =>
+    series((state) => (pick(state) ? '1' : '0'))
+  const arcOf = (state: PlantParts) => (BENDS[state.droop] ?? 0) + state.wilt * 0.12
+  const bend = series((state) => `rotate(${(((arcOf(state) / 4) * 180) / Math.PI).toFixed(2)}deg)`)
+  const spreadOf = (state: PlantParts) => 52 + state.droop * 14
+  const leafColor = colors(COLORS.leaf, '#9b7a3e')
+  const veinColor = colors(COLORS.leafDark, '#7a5d2c')
+  const stemColor = colors(COLORS.leafDark, '#7f6a35')
+  const petalColor = colors(COLORS.pink, '#a98a6b')
+  const centerColor = colors(COLORS.sun, '#8d6b37')
+
+  const leaf = (side: number, extra: number, size: number, delay: number) => {
+    const swing = series((state) => `rotate(${side * (spreadOf(state) + extra)}deg)`)
+    return `<g ${attrs({ transform: swing }, delay)}><g transform="scale(${size})"><path d="${LEAF_PATH}" ${attrs({ fill: leafColor }, delay)}/><path d="M0-4V-32" stroke-width="2.6" stroke-linecap="round" ${attrs({ stroke: veinColor }, delay)}/></g></g>`
+  }
+
+  const petals = Array.from({ length: 8 }, (_, index) => {
+    const delay = index * 0.05
+    const tracks: Tracks = {
+      fill: petalColor,
+      opacity: series((state) => (index < state.petals ? '1' : '0')),
+      transform: series((state) =>
+        index < state.petals ? 'translate(0px, 0px) scale(1)' : 'translate(0px, 44px) scale(0.4)',
+      ),
+    }
+    return `<g transform="rotate(${index * 45})"><ellipse cx="0" cy="-17" rx="8" ry="12" ${attrs(tracks, delay)}/></g>`
+  }).join('')
+  const flower = `<g transform="scale(0.98)">${petals}<circle r="11" ${attrs({ fill: centerColor }, 0.1)}/></g>`
+
+  const segment = (inner: string, delay: number, extra = '') =>
+    `<g ${attrs({ transform: bend }, delay)}><path d="M0 0V${-JOINT}" fill="none" stroke-width="7.5" stroke-linecap="round" ${attrs({ stroke: stemColor }, delay)}/>${extra}<g transform="translate(0 ${-JOINT})">${inner}</g></g>`
+  const crown = segment(
+    segment(
+      segment(segment(flower, 0.27), 0.18, leaf(-1, 8, 0.82, 0.22)),
+      0.09,
+      leaf(1, 0, 1, 0.14),
+    ),
+    0,
+    leaf(-1, 0, 1.05, 0.06),
+  )
+
+  const fallen = [
+    [46, 172, -30],
+    [158, 176, 40],
+    [62, 180, 70],
+  ]
+    .map(([x, y, r], index) => {
+      const tracks: Tracks = {
+        opacity: series((state) => (index < state.fallen ? '1' : '0')),
+        transform: series((state) =>
+          index < state.fallen
+            ? 'translate(0px, 0px) rotate(0deg)'
+            : 'translate(0px, -70px) rotate(120deg)',
+        ),
+      }
+      return `<g transform="translate(${x} ${y})"><g ${attrs(tracks, 0.3 + index * 0.12)}><g transform="rotate(${r}) scale(0.5)"><path d="${LEAF_PATH}" fill="#7c5d30"/></g></g></g>`
+    })
+    .join('')
+
+  const soil = `<ellipse cx="100" cy="124" rx="38" ry="4.5" ${attrs({ fill: series((state) => (state.wet ? COLORS.soilWet : COLORS.soil)) }, 0.35)}/>`
+  const cracks = `<path d="M78 124l6 2 3-2M108 123l5 2 4-2" fill="none" stroke="#7a5a44" stroke-width="2" stroke-linecap="round" ${attrs({ opacity: show((state) => !state.wet && state.wilt > 0) })}/>`
+  const faces = [...new Set(states.map((state) => state.mood))]
+    .map(
+      (mood) =>
+        `<g ${attrs({ opacity: show((state) => state.mood === mood) }, 0.2)}>${serialize(face(100, 158, mood, '#5b2612', 0.95))}</g>`,
+    )
+    .join('')
+  const popped = (pick: (state: PlantParts) => boolean) => ({
+    opacity: show(pick),
+    transform: series((state) => (pick(state) ? 'scale(1)' : 'scale(0)')),
+  })
+  const thirst = `<circle cx="64" cy="82" r="4.5" fill="${COLORS.cream}" ${attrs({ opacity: show((state) => state.thirst) }, 0.1)}/><circle cx="54" cy="69" r="7.5" fill="${COLORS.cream}" ${attrs({ opacity: show((state) => state.thirst) }, 0.25)}/><g transform="translate(42 40)"><g ${attrs(
+    popped((state) => state.thirst),
+    0.4,
+  )}><circle r="24" fill="${COLORS.cream}"/>${serialize(drop(0, 1, COLORS.waterDark, 1.7))}</g></g>`
+  const falling = [
+    [52, 34, 1],
+    [148, 26, 2],
+    [32, 80, 3],
+    [170, 74, 4],
+  ]
+    .map(
+      ([x, y, delay], index) =>
+        `<g ${attrs({ opacity: show((state) => state.drops) }, 0.2 + index * 0.12)}><g transform="translate(${x} ${y})">${serialize(motion('fall', drop(0, 0, COLORS.water, 1.05), delay))}</g></g>`,
+    )
+    .join('')
+  const twinkles = (
+    [
+      [40, 112, 1, 2],
+      [164, 118, 0.85, 3],
+      [100, 16, 0.9, 1],
+    ] as const
+  )
+    .map(
+      ([x, y, size, delay], index) =>
+        `<g ${attrs({ opacity: show((state) => state.drops) }, 0.5 + index * 0.1)}>${serialize(sparkle(x, y, size, delay))}</g>`,
+    )
+    .join('')
+
+  const pour = states.findIndex((state) => state.drops)
+  const pourAt = percent(pour)
+  const span = (value: number) => (value / seconds) * 100
+  const canDrops = [
+    [92, 60, 1],
+    [104, 74, 2],
+    [84, 82, 3],
+    [96, 96, 4],
+  ]
+    .map(
+      ([x, y, delay]) =>
+        `<g transform="translate(${x} ${y})">${serialize(motion('fall', drop(0, 0, COLORS.water, 0.9), delay))}</g>`,
+    )
+    .join('')
+  const canVisible = showCan ? '' : ' opacity="0"'
+  const can = `<g class="${animated ? 'kf can' : ''}"${canVisible}><g transform="translate(150 42) rotate(-10)"><rect x="-20" y="-14" width="46" height="34" rx="7" fill="${COLORS.sky}"/><path d="M-20-2L-48-20" stroke="${COLORS.sky}" stroke-width="8" stroke-linecap="round"/><rect x="-56" y="-30" width="9" height="20" rx="3" transform="rotate(-32 -52 -20)" fill="${COLORS.skyDark}"/><path d="M26-6a14 14 0 0 1 0 22" fill="none" stroke="${COLORS.skyDark}" stroke-width="6" stroke-linecap="round"/></g>${canDrops}</g>`
+  rules.push(
+    `.can { opacity: 0; transform-box: fill-box; animation: can ${seconds}s ease-in-out infinite }`,
+  )
+  rules.push(
+    `@keyframes can { 0%, ${pourAt - span(1.1)}% { opacity: 0; transform: translate(34px, -20px) rotate(16deg) } ${pourAt - span(0.7)}%, ${pourAt + span(0.6)}% { opacity: 1; transform: translate(0px, 0px) rotate(0deg) } ${pourAt + span(1)}%, 100% { opacity: 0; transform: translate(34px, -20px) rotate(16deg) } }`,
+  )
+  rules.push('@media (prefers-reduced-motion: reduce) { .kf { animation: none } }')
+
+  const uniqueScenes = [...new Set(tiles.map((tile) => JSON.stringify(tile.scene)))]
+  const backgrounds = uniqueScenes
+    .map((scene) => {
+      const parsed = { progress: 0.5, fill: 0, stink: 0, ...(JSON.parse(scene) as object) } as never
+      const markup = serialize(frame('plant', parsed, { animations: false }, [])).replace(
+        '<svg',
+        '<svg width="200" height="200"',
+      )
+      const visible = tiles.map((tile) => (JSON.stringify(tile.scene) === scene ? '1' : '0'))
+      return `<g ${attrs({ opacity: visible })}>${markup}</g>`
+    })
+    .join('')
+  const left = centerX(2) - SCENE_SIZE / 2
+  const body = [
+    backgrounds,
+    serialize(shadow(100, 183, 52)),
+    fallen,
+    `<g transform="translate(100 138)">${crown}</g>`,
+    `<path d="M62 134H138L130 176Q129 182 122 182H78Q71 182 70 176Z" fill="${COLORS.terracotta}"/>`,
+    `<rect x="55" y="122" width="90" height="19" rx="8" fill="${COLORS.terracottaDark}"/>`,
+    soil,
+    cracks,
+    faces,
+    thirst,
+    falling,
+    twinkles,
+    can,
+  ].join('')
+  return {
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    css: rules.join('\n'),
+  }
+}
+
 function dayStyles(allRuns: Run[]): string {
   const total = MOMENTS.length
   const seconds = total * FRAME_SECONDS
@@ -554,7 +760,6 @@ function dayStyles(allRuns: Run[]): string {
   const kinds: Array<[number, string, (run: Run) => string, string]> = [
     [0, 'p', pillKeyframes, 'ease-in-out'],
     [1, 'd', drainKeyframes, 'ease-in-out'],
-    [2, 'g', plantKeyframes, 'linear'],
   ]
   const sceneRules = kinds.flatMap(([column, kind, frames, easing]) => {
     const own = allRuns.filter((run) => run.column === column)
@@ -605,7 +810,8 @@ function dayCycle(only?: number, stillOffset?: number): string {
   const shown = allRuns.filter((run) => animated || (only >= run.start && only < run.end))
   const focus = MOMENTS[only ?? 4] as Moment
   const sceneAnimations = sceneStyles.cssText.replace(/\.ht-scene\s*\{[^}]*\}/, '')
-  const css = animated ? `${sceneAnimations}\n${dayStyles(allRuns)}` : ''
+  const living = livingPlant(only, preview)
+  const css = animated ? `${sceneAnimations}\n${dayStyles(allRuns)}\n${living.css}` : ''
   const moments = MOMENTS.map((moment, index) => ({ moment, index })).filter(
     ({ index }) => animated || index === only,
   )
@@ -618,8 +824,9 @@ function dayCycle(only?: number, stillOffset?: number): string {
       ? whirlMarkup(0, true)
       : ''
   const scenes = COLUMNS.map((_, column) => {
+    if (column === 2) return `<g clip-path="url(#scene2)">${living.markup}</g>`
     const kind = ['p', 'd', 'g'][column]
-    const pivot = column === 2 ? origin(2, BOTTOM_Y) : origin(column)
+    const pivot = origin(column)
     const groups = shown
       .filter((run) => run.column === column && !(preview && column === 1))
       .map((run) => {
