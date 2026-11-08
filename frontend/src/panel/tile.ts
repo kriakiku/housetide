@@ -288,6 +288,7 @@ export const taskStyles = css`
     position: relative;
     overflow: hidden;
     border-radius: calc(var(--ht-radius) * 0.9);
+    corner-shape: var(--ht-corner);
     background: var(--ht-surface-alt);
   }
 
@@ -432,6 +433,7 @@ export const taskStyles = css`
     padding: 0 10px;
     border: 2px solid transparent;
     border-radius: calc(var(--ht-radius) * 1.2);
+    corner-shape: var(--ht-corner);
     font: inherit;
     font-size: 1rem;
     font-weight: 700;
@@ -531,6 +533,7 @@ export const taskStyles = css`
     gap: 10px;
     padding: 10px;
     border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
     background: var(--ht-surface);
     box-shadow: var(--ha-card-box-shadow, none);
   }
@@ -554,6 +557,7 @@ export const taskStyles = css`
     margin-block: 4px;
     height: 80px;
     border-radius: var(--ht-radius);
+    corner-shape: var(--ht-corner);
   }
 
   .tile.skeleton {
@@ -573,6 +577,7 @@ export const taskStyles = css`
     height: 8px;
     margin: -4px;
     border-radius: 2px;
+    corner-shape: var(--ht-corner);
     opacity: 0;
     background: #ffc857;
   }

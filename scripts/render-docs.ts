@@ -11,6 +11,8 @@ import {
   shadow,
   sparkle,
   stenchLines,
+  superellipsePath,
+  TILE,
   fly,
   tileFor,
 } from '../frontend/src/scenes/common.ts'
@@ -81,6 +83,9 @@ function serialize(value: unknown): string {
   return String(value)
 }
 
+const box = (x: number, y: number, w: number, h: number, r: number, rest = '') =>
+  `<path d="${superellipsePath(x, y, w, h, r)}" ${rest}/>`
+
 function cell(sample: Sample, index: number, prefix: string): string {
   const x = GAP + index * (CELL + GAP)
   const scene = { progress: 0.5, fill: 0, stink: 0, ...sample } as never
@@ -99,7 +104,7 @@ function gallery(name: string, samples: Sample[]): void {
   const body = samples.map((sample, index) => cell(sample, index, `${name}${index}-`)).join('')
   writeFileSync(
     join(OUT, `${name}.svg`),
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="24" fill="#1C1B24"/>${body}</svg>\n`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${body}</svg>\n`,
   )
 }
 
@@ -316,7 +321,7 @@ function buttonMarkup(tile: Tile, x: number, y: number, width: number): string {
       ? `<path transform="translate(${center - 60} ${y + 10}) scale(0.75)" d="${BOLT}" fill="${foreground}"/>`
       : ''
   return (
-    `<rect x="${x}" y="${y}" width="${width}" height="38" rx="19" fill="${background}"/>${bolt}` +
+    `${box(x, y, width, 38, 19, `fill="${background}"`)}${bolt}` +
     label(center, y + 24, 14.5, foreground, tile.button, 'text-anchor="middle" font-weight="600"')
   )
 }
@@ -328,7 +333,7 @@ const TILES_Y = PANEL_Y + 56
 const COLUMNS = [56, 344, 632]
 const SCENE_SIZE = 176
 const SCENE_Y = TILES_Y + 12
-const SCENE_RX = 25
+const SCENE_RX = 24.64
 
 function textContent(tile: Tile, x: number): string {
   const center = x + TILE_W / 2
@@ -381,9 +386,7 @@ function skyMarkup(moment: Moment, index: number, cls: string): string {
 
 function chromeMarkup(): string {
   const tab = (x: number, text: string, active: boolean) =>
-    (active
-      ? `<rect x="${x - 34}" y="${PANEL_Y + 12}" width="68" height="32" rx="16" fill="#e4cdee"/>`
-      : '') +
+    (active ? box(x - 34, PANEL_Y + 12, 68, 32, 16, 'fill="#e4cdee"') : '') +
     label(
       x,
       PANEL_Y + 33,
@@ -393,14 +396,14 @@ function chromeMarkup(): string {
       'text-anchor="middle" font-weight="600"',
     )
   return [
-    `<rect x="40" y="${PANEL_Y}" width="880" height="396" rx="20" fill="#1a1922"/>`,
+    box(40, PANEL_Y, 880, 396, 20, 'fill="#1a1922"'),
     label(64, PANEL_Y + 34, 19, '#f2f0f8', 'Housetide', 'font-weight="600"'),
     tab(716, 'Today', true),
     tab(790, 'Tasks', false),
     tab(864, 'History', false),
     ...COLUMNS.map(
       (x) =>
-        `<rect x="${x}" y="${TILES_Y}" width="${TILE_W}" height="${TILE_H}" rx="16" fill="#25232f"/><rect x="${x + TILE_W / 2 - SCENE_SIZE / 2}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" rx="${SCENE_RX}" fill="#1b1a24"/>`,
+        `${box(x, TILES_Y, TILE_W, TILE_H, 16, 'fill="#25232f"')}${box(x + TILE_W / 2 - SCENE_SIZE / 2, SCENE_Y, SCENE_SIZE, SCENE_SIZE, SCENE_RX, 'fill="#1b1a24"')}`,
     ),
   ].join('')
 }
@@ -539,7 +542,7 @@ function backdrop(tiles: Tile[], attrs: Timeline['attrs']): string {
   const colors = tiles.map((tile) => tileFor(tile.scene.state as SceneState, tile.scene.stink ?? 0))
   const wall = colors.map((color) => color.wall)
   const floor = colors.map((color) => color.floor)
-  return `<rect width="200" height="200" rx="28" ${attrs({ fill: wall })}/><circle cx="100" cy="98" r="86" fill="#fff" opacity=".05"/><path d="${FLOOR}" ${attrs({ fill: floor })}/>`
+  return `<path d="${TILE}" ${attrs({ fill: wall })}/><circle cx="100" cy="98" r="86" fill="#fff" opacity=".05"/><path d="${FLOOR}" ${attrs({ fill: floor })}/>`
 }
 
 const PILL_SLOTS = [
@@ -1149,7 +1152,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
     .join('')
   const clips = COLUMNS.map((x, column) => {
     const left = x + TILE_W / 2 - SCENE_SIZE / 2
-    return `<clipPath id="scene${column}"><rect x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" rx="${SCENE_RX}"/></clipPath>`
+    return `<clipPath id="scene${column}">${box(left, SCENE_Y, SCENE_SIZE, SCENE_SIZE, SCENE_RX)}</clipPath>`
   }).join('')
   const strip = `<rect y="508" width="${WIDTH}" height="64" fill="#14131b" opacity="0.72"/>`
   const captions = moments.map(({ moment, index }) => captionMarkup(moment, index)).join('')
@@ -1165,7 +1168,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
     animated || night
       ? `<g class="moon" transform="translate(820 52)"><circle r="24" fill="#e8e6f5"/><circle cx="9" cy="-5" r="20" fill="#1a2247"/></g>`
       : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round"><rect width="${WIDTH}" height="${HEIGHT}" rx="24"/></clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round">${box(0, 0, WIDTH, HEIGHT, 24)}</clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
 }
 
 mkdirSync(OUT, { recursive: true })

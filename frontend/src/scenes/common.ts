@@ -117,7 +117,32 @@ export function tileFor(state: SceneState, stink: number): { wall: string; floor
   return { wall: mix(base.wall, SWAMP.wall, t), floor: mix(base.floor, SWAMP.floor, t) }
 }
 
-export const FLOOR = 'M0 168H200V172a28 28 0 0 1-28 28H28a28 28 0 0 1-28-28Z'
+const CORNER_SHAPE = 1.6
+const CORNER_STEPS = 12
+
+function corner(cx: number, cy: number, r: number, start: number): string {
+  const exponent = 2 / 2 ** CORNER_SHAPE
+  const curve = (value: number) => Math.sign(value) * Math.abs(value) ** exponent
+  return Array.from({ length: CORNER_STEPS + 1 }, (_, i) => {
+    const angle = ((start + (i * 90) / CORNER_STEPS) * Math.PI) / 180
+    return `L${round(cx + r * curve(Math.cos(angle)))} ${round(cy + r * curve(Math.sin(angle)))}`
+  }).join('')
+}
+
+export function superellipsePath(x: number, y: number, w: number, h: number, r: number): string {
+  const right = x + w - r
+  const bottom = y + h - r
+  const body = [
+    corner(right, y + r, r, -90),
+    corner(right, bottom, r, 0),
+    corner(x + r, bottom, r, 90),
+    corner(x + r, y + r, r, 180),
+  ].join('')
+  return `M${body.slice(1)}Z`
+}
+
+export const TILE = superellipsePath(0, 0, 200, 200, 28)
+export const FLOOR = `M0 168H200V172${corner(172, 172, 28, 0)}${corner(28, 172, 28, 90)}Z`
 
 export function frame(
   name: SceneName,
@@ -138,7 +163,7 @@ export function frame(
     data-scene=${name}
     data-state=${scene.state}
   >
-    ${svg`<rect data-part="tile" width="200" height="200" rx="28" fill=${tile.wall} />`}
+    ${svg`<path data-part="tile" d=${TILE} fill=${tile.wall} />`}
     ${
       floor
         ? svg`<circle cx="100" cy="98" r="86" fill="#fff" opacity=".05" /><path data-part="floor" d=${FLOOR} fill=${tile.floor} />`

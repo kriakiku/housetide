@@ -117,6 +117,7 @@ export class HousetideToday extends LitElement {
         height: 64px;
         padding: 0 8px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 

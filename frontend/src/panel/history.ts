@@ -73,6 +73,7 @@ export class HousetideHistory extends LitElement {
         align-content: center;
         padding: 8px 12px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 
@@ -107,6 +108,7 @@ export class HousetideHistory extends LitElement {
       .panel {
         padding: 12px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 
@@ -148,6 +150,7 @@ export class HousetideHistory extends LitElement {
         height: 100%;
         box-sizing: border-box;
         border-radius: 7px;
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface-alt);
       }
 

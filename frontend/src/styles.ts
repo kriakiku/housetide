@@ -13,6 +13,7 @@ export const tokens = css`
     --ht-success: var(--success-color, #43a047);
     --ht-warning: var(--warning-color, #ffa600);
     --ht-radius: var(--ha-card-border-radius, 12px);
+    --ht-corner: superellipse(1.6);
     --ht-touch: 56px;
     --ht-gap: 12px;
     color: var(--ht-fg);
@@ -31,6 +32,7 @@ export const controls = css`
     padding: 0 16px;
     border: 1px solid var(--ht-divider);
     border-radius: var(--ht-radius);
+    corner-shape: var(--ht-corner);
     background: transparent;
     color: var(--ht-fg);
     font: inherit;
@@ -76,6 +78,7 @@ export const controls = css`
     padding: 8px 12px;
     border: 1px solid var(--ht-divider);
     border-radius: calc(var(--ht-radius) / 1.5);
+    corner-shape: var(--ht-corner);
     background: var(--ht-surface-alt);
     color: var(--ht-fg);
     font: inherit;

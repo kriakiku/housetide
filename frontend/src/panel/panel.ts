@@ -82,6 +82,7 @@ export class HousetidePanel extends LitElement {
         padding: 0 16px;
         border: 0;
         border-radius: 999px;
+        corner-shape: var(--ht-corner);
         background: transparent;
         color: inherit;
         font: inherit;
@@ -134,6 +135,7 @@ export class HousetidePanel extends LitElement {
         gap: 6px;
         padding: 8px 14px;
         border-radius: 999px;
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface-alt);
         color: var(--ht-warning);
         font-size: 0.875rem;

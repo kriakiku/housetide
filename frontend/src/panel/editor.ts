@@ -100,6 +100,7 @@ export class HousetideEditor extends LitElement {
         gap: 12px;
         padding: 14px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 
@@ -184,6 +185,7 @@ export class HousetideEditor extends LitElement {
         padding: 4px 4px 6px;
         border: 2px solid transparent;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface-alt);
         color: var(--ht-fg);
         font: inherit;
@@ -204,6 +206,7 @@ export class HousetideEditor extends LitElement {
         overflow: hidden;
         aspect-ratio: 1;
         border-radius: calc(var(--ht-radius) * 0.7);
+        corner-shape: var(--ht-corner);
       }
 
       .check {
@@ -239,6 +242,7 @@ export class HousetideEditor extends LitElement {
       .stage {
         padding: 12px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface-alt);
         display: grid;
         gap: 10px;
@@ -269,6 +273,7 @@ export class HousetideEditor extends LitElement {
         padding: 10px;
         border: 1px dashed var(--ht-divider);
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
       }
 
       .picker {
@@ -281,6 +286,7 @@ export class HousetideEditor extends LitElement {
         overflow: hidden;
         border: 1px solid var(--ht-divider);
         border-radius: calc(var(--ht-radius) / 1.5);
+        corner-shape: var(--ht-corner);
       }
 
       .suggestion {

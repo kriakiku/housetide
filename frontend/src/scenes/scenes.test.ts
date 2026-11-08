@@ -4,6 +4,7 @@ import { render } from 'lit'
 
 import { sceneStyles } from '../styles.ts'
 import type { PillSlot, SceneName, SceneState, SceneView } from '../types.ts'
+import { superellipsePath } from './common.ts'
 import { genericParts } from './generic.ts'
 import { renderScene, sceneFor, generic, laundry, pills, plant } from './index.ts'
 import type { SceneOptions } from './index.ts'
@@ -385,5 +386,22 @@ describe('generic', () => {
     const root = draw(view('generic', 'clean'))
     expect(count(root, 'check')).toBe(1)
     expect(count(root, 'boat')).toBe(0)
+  })
+})
+
+describe('superellipse corners', () => {
+  test('stays inside the box and bulges past a circular corner', () => {
+    const path = superellipsePath(0, 0, 100, 100, 20)
+    expect(path.startsWith('M')).toBe(true)
+    expect(path.endsWith('Z')).toBe(true)
+    const numbers = path.match(/-?[\d.]+/g)?.map(Number) ?? []
+    expect(Math.min(...numbers)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...numbers)).toBeLessThanOrEqual(100)
+    const points = Array.from({ length: numbers.length / 2 }, (_, i) => [
+      numbers[i * 2] as number,
+      numbers[i * 2 + 1] as number,
+    ])
+    const farthest = Math.max(...points.map(([x = 0, y = 0]) => Math.hypot(x - 80, y - 20)))
+    expect(farthest).toBeGreaterThan(20)
   })
 })

@@ -84,6 +84,7 @@ export class HousetideCard extends LitElement {
       }
 
       ha-card {
+        corner-shape: var(--ht-corner);
         position: relative;
         display: block;
         box-sizing: border-box;

@@ -70,6 +70,7 @@ export class HousetideTasks extends LitElement {
         padding: 8px;
         border: 0;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
         color: var(--ht-fg);
         font: inherit;
@@ -84,11 +85,13 @@ export class HousetideTasks extends LitElement {
         width: 48px;
         height: 48px;
         border-radius: calc(var(--ht-radius) * 0.7);
+        corner-shape: var(--ht-corner);
       }
 
       .list {
         overflow: hidden;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 
@@ -145,6 +148,7 @@ export class HousetideTasks extends LitElement {
       .chip {
         padding: 2px 10px;
         border-radius: 999px;
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface-alt);
         color: var(--ht-muted);
         font-size: 0.8125rem;
@@ -171,6 +175,7 @@ export class HousetideTasks extends LitElement {
       .empty {
         padding: 24px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
         color: var(--ht-muted);
         text-align: center;
@@ -188,6 +193,7 @@ export class HousetideTasks extends LitElement {
         gap: 12px;
         padding: 12px;
         border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
         background: var(--ht-surface);
       }
 
