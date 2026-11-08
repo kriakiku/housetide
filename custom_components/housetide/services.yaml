@@ -1,0 +1,18 @@
+advance:
+  fields:
+    task_id:
+      required: true
+      selector:
+        text:
+skip:
+  fields:
+    task_id:
+      required: true
+      selector:
+        text:
+undo:
+  fields:
+    task_id:
+      required: true
+      selector:
+        text:

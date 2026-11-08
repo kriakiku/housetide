@@ -1,0 +1,79 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Housetide",
+        "description": "Adds household tasks, a sidebar panel and a dashboard card."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Housetide is already set up."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "due": {
+        "name": "Due"
+      }
+    },
+    "sensor": {
+      "task": {
+        "state": {
+          "upcoming": "Upcoming",
+          "due": "Due",
+          "overdue": "Overdue",
+          "in_progress": "In progress",
+          "clean": "Clean",
+          "done": "Done",
+          "disabled": "Disabled"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Housetide is not loaded."
+    },
+    "task_not_found": {
+      "message": "There is no task with id {task_id}."
+    },
+    "action_not_allowed": {
+      "message": "Task {task_id} cannot do that right now."
+    },
+    "todo_read_only": {
+      "message": "Housetide items can only be checked off. Edit the task in the Housetide panel."
+    }
+  },
+  "services": {
+    "advance": {
+      "name": "Advance",
+      "description": "Moves a task to its next stage, completing it after the last one.",
+      "fields": {
+        "task_id": {
+          "name": "Task ID",
+          "description": "The id of the task, shown in the attributes of its sensor."
+        }
+      }
+    },
+    "skip": {
+      "name": "Skip",
+      "description": "Ends the current occurrence of a task without completing it.",
+      "fields": {
+        "task_id": {
+          "name": "Task ID",
+          "description": "The id of the task, shown in the attributes of its sensor."
+        }
+      }
+    },
+    "undo": {
+      "name": "Undo",
+      "description": "Restores a task to how it was before its last change.",
+      "fields": {
+        "task_id": {
+          "name": "Task ID",
+          "description": "The id of the task, shown in the attributes of its sensor."
+        }
+      }
+    }
+  }
+}

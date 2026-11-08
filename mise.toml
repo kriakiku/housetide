@@ -1,0 +1,21 @@
+[tools]
+bun = "1.4.4"
+python = "3.14.10"
+uv = "latest"
+
+[tasks.setup]
+run = [
+  "bun install",
+  "uv venv --allow-existing --python $(which python) .venv",
+  "uv pip install -p .venv -r requirements-test.txt",
+]
+
+[tasks.py]
+run = [
+  ".venv/bin/ruff format --check custom_components tests",
+  ".venv/bin/ruff check custom_components tests",
+  ".venv/bin/pytest -q tests",
+]
+
+[tasks.check]
+run = ["bun install --frozen-lockfile", "bun run check", "mise run py"]

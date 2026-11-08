@@ -1,0 +1,29 @@
+{
+  "name": "housetide",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run test && bun run build",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint --type-aware",
+    "typecheck": "tsc",
+    "test": "bun test frontend",
+    "build": "bun build frontend/src/housetide.ts --outfile custom_components/housetide/frontend/housetide.js --format esm --target browser --minify",
+    "docs:images": "bun run scripts/render-docs.ts"
+  },
+  "dependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "*",
+    "@types/bun": "^1.4.4",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "typescript": "7.0.2"
+  },
+  "packageManager": "bun@1.4.4"
+}
