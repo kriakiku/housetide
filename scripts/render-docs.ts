@@ -282,12 +282,24 @@ const TILE_H = 324
 const PANEL_Y = 96
 const TILES_Y = PANEL_Y + 56
 const COLUMNS = [56, 344, 632]
-const WAVE_SECONDS = 1.08
+const SCENE_SIZE = 176
+const SCENE_Y = TILES_Y + 12
+const SCENE_RX = 25
 
-function tileContent(tile: Tile, x: number, prefix: string, animations: boolean): string {
+function sceneContent(tile: Tile, x: number, prefix: string, animations: boolean): string {
+  return sceneMarkup(
+    tile.scene,
+    x + TILE_W / 2 - SCENE_SIZE / 2,
+    SCENE_Y,
+    SCENE_SIZE,
+    prefix,
+    animations,
+  )
+}
+
+function textContent(tile: Tile, x: number): string {
   const center = x + TILE_W / 2
   return [
-    sceneMarkup(tile.scene, center - 88, TILES_Y + 12, 176, prefix, animations),
     label(
       center,
       TILES_Y + 215,
@@ -327,63 +339,27 @@ function runs(): Run[] {
   return result
 }
 
-const TRIP_SECONDS = 1.7
 const DRAIN_SECONDS = 1.5
-const CENTER_Y = TILES_Y + TILE_H / 2
+const CENTER_Y = SCENE_Y + SCENE_SIZE / 2
+const BOTTOM_Y = SCENE_Y + SCENE_SIZE
 const centerX = (column: number) => COLUMNS[column]! + TILE_W / 2
-const origin = (column: number) => `transform-origin:${centerX(column)}px ${CENTER_Y}px`
-
-function tripMarkup(delay: number, still: boolean): string {
-  const cx = centerX(0)
-  const discs: Array<[number, string, number]> = [
-    [236, '#ff4fa0', 0],
-    [196, '#ffd23f', 14],
-    [156, '#2ee6a8', -18],
-    [118, '#4d7cff', 16],
-    [82, '#c04dff', -12],
-    [48, '#ff7a30', 10],
-    [20, '#fff4b0', 0],
-  ]
-  const circles = discs
-    .map(([r, fill, shift], index) => {
-      const style = still
-        ? ''
-        : ` style="${origin(0)};animation-delay:${(delay + index * 0.06).toFixed(2)}s"`
-      return `<circle class="disc" cx="${cx + shift}" cy="${CENTER_Y - shift / 2}" r="${r}" fill="${fill}"${style}/>`
-    })
-    .join('')
-  const eyes = [
-    [-78, -92, 20],
-    [74, -58, 16],
-    [-46, 96, 15],
-    [86, 92, 22],
-  ]
-    .map(([dx, dy, r], index) => {
-      const style = still
-        ? ''
-        : ` style="${origin(0)};animation-delay:${(delay + 0.1 + index * 0.05).toFixed(2)}s"`
-      const eye = `<g transform="translate(${cx + dx!} ${CENTER_Y + dy!})"><circle r="${r}" fill="#ffffff"/><circle r="${r! * 0.58}" fill="#7a2bd6"/><circle r="${r! * 0.26}" fill="#10061f"/><circle cx="${r! * 0.2}" cy="${-r! * 0.22}" r="${r! * 0.13}" fill="#ffffff"/></g>`
-      return `<g class="float"${style}>${eye}</g>`
-    })
-    .join('')
-  return `<g clip-path="url(#tile0)"><g class="trip">${circles}${eyes}</g></g>`
-}
+const origin = (column: number, y = CENTER_Y) => `transform-origin:${centerX(column)}px ${y}px`
 
 function spiralArm(cx: number, turn: number): string {
   const points = Array.from({ length: 40 }, (_, step) => {
     const t = step / 39
-    const radius = 14 + t * 230
+    const radius = 8 + t * 132
     const angle = turn + t * Math.PI * 2.6
     return `${(cx + Math.cos(angle) * radius).toFixed(1)} ${(CENTER_Y + Math.sin(angle) * radius).toFixed(1)}`
   })
-  return `<path d="M${points.join('L')}" fill="none" stroke="#7cc0ff" stroke-width="9" stroke-linecap="round" opacity="0.75"/>`
+  return `<path d="M${points.join('L')}" fill="none" stroke="#7cc0ff" stroke-width="6" stroke-linecap="round" opacity="0.75"/>`
 }
 
 function whirlMarkup(delay: number, still: boolean): string {
   const cx = centerX(1)
   const style = still ? '' : ` style="${origin(1)};animation-delay:${delay.toFixed(2)}s"`
   const arms = [0, 1, 2, 3].map((arm) => spiralArm(cx, (arm * Math.PI) / 2)).join('')
-  return `<g clip-path="url(#tile1)"><g class="whirl"${style}><circle cx="${cx}" cy="${CENTER_Y}" r="240" fill="#1d5aa8"/>${arms}<circle cx="${cx}" cy="${CENTER_Y}" r="20" fill="#06101f"/></g></g>`
+  return `<g clip-path="url(#scene1)"><g class="whirl"${style}><circle cx="${cx}" cy="${CENTER_Y}" r="140" fill="#1d5aa8"/>${arms}<circle cx="${cx}" cy="${CENTER_Y}" r="13" fill="#06101f"/></g></g>`
 }
 
 function itemsMarkup(delay: number, still: boolean): string {
@@ -399,33 +375,12 @@ function itemsMarkup(delay: number, still: boolean): string {
     .map((shape, index) => {
       const angle = index * 72 + 20
       const inner = still
-        ? ` transform="translate(${60 + index * 16} 0)"`
+        ? ` transform="translate(${34 + index * 11} 0)"`
         : ` style="${origin(1)};animation-delay:${(delay + index * 0.05).toFixed(2)}s"`
-      return `<g transform="rotate(${angle} ${cx} ${CENTER_Y})"><g class="suck"${inner}><g transform="translate(${cx} ${CENTER_Y})">${shape}</g></g></g>`
+      return `<g transform="rotate(${angle} ${cx} ${CENTER_Y})"><g class="suck"${inner}><g transform="translate(${cx} ${CENTER_Y}) scale(0.62)">${shape}</g></g></g>`
     })
     .join('')
-  return `<g clip-path="url(#tile1)">${items}</g>`
-}
-
-function leafMarkup(delay: number, offset?: number): string {
-  const x = COLUMNS[2]!
-  const scallops = Array.from({ length: 8 }, () => 'q22 -34 44 0').join('')
-  const crest = `M${x - 44} ${TILES_Y}${scallops}V${TILES_Y + 400}H${x - 44}Z`
-  const still = offset === undefined ? '' : ` transform="translate(0 ${offset})"`
-  const timing = (extra: number) =>
-    offset === undefined ? ` style="animation-delay:${(delay + extra).toFixed(2)}s"` : ''
-  const petals = [
-    [36, -34, '#ff9ecb'],
-    [112, -52, '#ffd23f'],
-    [188, -30, '#ff9ecb'],
-    [246, -46, '#ffffff'],
-  ]
-    .map(
-      ([dx, dy, fill]) =>
-        `<ellipse cx="${x + Number(dx)}" cy="${TILES_Y + Number(dy)}" rx="9" ry="5" fill="${fill}" transform="rotate(${Number(dx)} ${x + Number(dx)} ${TILES_Y + Number(dy)})"/>`,
-    )
-    .join('')
-  return `<g clip-path="url(#tile2)"><g class="wave"${still}${timing(-0.09)}><path d="${crest}" fill="#8ed39a"/></g><g class="wave"${still}${timing(0)}>${petals}<path d="${crest}" fill="#3f9d57"/></g></g>`
+  return `<g clip-path="url(#scene1)">${items}</g>`
 }
 
 function skyMarkup(moment: Moment, index: number, cls: string): string {
@@ -454,7 +409,7 @@ function chromeMarkup(): string {
     tab(864, 'History', false),
     ...COLUMNS.map(
       (x) =>
-        `<rect x="${x}" y="${TILES_Y}" width="${TILE_W}" height="${TILE_H}" rx="16" fill="#25232f"/>`,
+        `<rect x="${x}" y="${TILES_Y}" width="${TILE_W}" height="${TILE_H}" rx="16" fill="#25232f"/><rect x="${x + TILE_W / 2 - SCENE_SIZE / 2}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" rx="${SCENE_RX}" fill="#1b1a24"/>`,
     ),
   ].join('')
 }
@@ -468,15 +423,99 @@ const sunY = (hour: number) => 124 - Math.sin((Math.PI * (hour - 5)) / 16) * 92
 
 const percent = (index: number) => (index / MOMENTS.length) * 100
 
-function runKeyframes({ start, end }: Run): string {
-  const from = percent(start)
-  const to = percent(end)
-  const name = `r${start}-${end}`
-  if (start === 0)
-    return `@keyframes ${name} { 0%, ${to - 0.01}% { opacity: 1 } ${to}%, 100% { opacity: 0 } }`
-  if (end === MOMENTS.length)
-    return `@keyframes ${name} { 0%, ${from - 0.01}% { opacity: 0 } ${from}%, 100% { opacity: 1 } }`
-  return `@keyframes ${name} { 0%, ${from - 0.01}% { opacity: 0 } ${from}%, ${to - 0.01}% { opacity: 1 } ${to}%, 100% { opacity: 0 } }`
+type Stop = [number, string]
+
+function stops(name: string, start: number, end: number, enter: Stop[], exit: Stop[]): string {
+  const seconds = MOMENTS.length * FRAME_SECONDS
+  const pct = (value: number) => (value / seconds) * 100
+  const lead = start === 0 ? -Math.min(...enter.map(([at]) => at)) : 0
+  const trail = end === MOMENTS.length ? -Math.max(...exit.map(([at]) => at)) : 0
+  const entered = enter.map(([at, state]): Stop => [percent(start) + pct(at + lead), state])
+  const left = exit.map(([at, state]): Stop => [percent(end) + pct(at + trail), state])
+  const all = [...entered, ...left]
+  const first = all[0]![0]
+  const last = all.at(-1)![0]
+  const body = all.map(([at, state]) => `${at}% { ${state} }`).join(' ')
+  const before = first > 0 ? `0%, ${first - 0.01}% { opacity: 0 } ` : ''
+  const after = last < 100 ? ` ${last + 0.01}%, 100% { opacity: 0 }` : ''
+  return `@keyframes ${name} { ${before}${body}${after} }`
+}
+
+const filterState = (blur: number, hue: number, saturate: number) =>
+  `filter: blur(${blur}px) hue-rotate(${hue}deg) saturate(${saturate})`
+
+function pillKeyframes({ start, end }: Run): string {
+  const here = `opacity: 1; ${filterState(0, 0, 1)}; transform: scale(1) rotate(0deg)`
+  return stops(
+    `p${start}-${end}`,
+    start,
+    end,
+    [
+      [-0.4, `opacity: 0; ${filterState(18, -170, 2.6)}; transform: scale(0.8) rotate(-9deg)`],
+      [0.25, `opacity: 0.85; ${filterState(7, -60, 1.9)}; transform: scale(1.06) rotate(4deg)`],
+      [0.9, here],
+    ],
+    [
+      [-0.9, here],
+      [-0.25, `opacity: 0.85; ${filterState(7, 70, 1.9)}; transform: scale(1.07) rotate(-4deg)`],
+      [0.4, `opacity: 0; ${filterState(18, 200, 2.6)}; transform: scale(1.26) rotate(9deg)`],
+    ],
+  )
+}
+
+function drainKeyframes({ start, end }: Run): string {
+  const here = 'opacity: 1; transform: rotate(0deg) scale(1)'
+  return stops(
+    `d${start}-${end}`,
+    start,
+    end,
+    [
+      [0, 'opacity: 1; transform: rotate(-260deg) scale(0.04)'],
+      [0.6, here],
+    ],
+    [
+      [-DRAIN_SECONDS / 2, here],
+      [0, 'opacity: 1; transform: rotate(720deg) scale(0.03)'],
+    ],
+  )
+}
+
+function plantKeyframes({ start, end }: Run): string {
+  const flat = 'opacity: 1; transform: scale(1.3, 0.02)'
+  const here = 'opacity: 1; transform: scale(1, 1)'
+  return stops(
+    `g${start}-${end}`,
+    start,
+    end,
+    [
+      [0, flat],
+      [0.26, 'opacity: 1; transform: scale(0.88, 1.18)'],
+      [0.46, 'opacity: 1; transform: scale(1.07, 0.93)'],
+      [0.64, 'opacity: 1; transform: scale(0.97, 1.03)'],
+      [0.8, here],
+    ],
+    [
+      [-0.6, here],
+      [-0.3, 'opacity: 1; transform: scale(0.9, 1.12)'],
+      [0, flat],
+    ],
+  )
+}
+
+function textKeyframes({ start, end }: Run): string {
+  return stops(
+    `t${start}-${end}`,
+    start,
+    end,
+    [
+      [-0.25, 'opacity: 0'],
+      [0.25, 'opacity: 1'],
+    ],
+    [
+      [-0.25, 'opacity: 1'],
+      [0.25, 'opacity: 0'],
+    ],
+  )
 }
 
 function skyKeyframes(index: number): string {
@@ -502,74 +541,59 @@ function captionKeyframes(index: number): string {
   return `@keyframes c${index} { 0%, ${start}% { ${hidden} } ${start + glide}%, ${end - glide}% { ${shown} } ${end}%, 100% { ${left} } }`
 }
 
-function drainKeyframes({ start, end }: Run): string {
-  const name = `d${start}-${end}`
-  const seconds = MOMENTS.length * FRAME_SECONDS
-  const from = percent(start)
-  const to = percent(end)
-  const enter = (0.6 / seconds) * 100
-  const leave = (DRAIN_SECONDS / 2 / seconds) * 100
-  const gone = 'transform: rotate(-260deg) scale(0.04)'
-  const here = 'transform: rotate(0deg) scale(1)'
-  const swallowed = 'transform: rotate(720deg) scale(0.03)'
-  const before = start === 0 ? '' : `0%, ${from - 0.01}% { opacity: 0 } `
-  const after =
-    end === MOMENTS.length
-      ? `100% { opacity: 1; ${swallowed} }`
-      : `${to}% { opacity: 1; ${swallowed} } ${to + 0.01}%, 100% { opacity: 0 }`
-  return `@keyframes ${name} { ${before}${from}% { opacity: 1; ${gone} } ${from + enter}%, ${to - leave}% { opacity: 1; ${here} } ${after} }`
-}
-
 function dayStyles(allRuns: Run[]): string {
   const total = MOMENTS.length
   const seconds = total * FRAME_SECONDS
   const pct = (value: number) => (value / seconds) * 100
-  const sweep = pct(WAVE_SECONDS)
   const sun = MOMENTS.map((moment, index) => {
     const opacity = moment.hour > 21 ? 0 : 1
     return `${percent(index)}% { transform: translate(${sunX(moment.hour)}px, ${sunY(moment.hour)}px); opacity: ${opacity} }`
   }).join(' ')
   const last = MOMENTS.at(-1) as Moment
   const moon = `0%, ${percent(total - 1) - 1}% { opacity: 0 } ${percent(total - 1)}%, 99% { opacity: 1 } 100% { opacity: 0 }`
-  const fading = allRuns.filter((run) => run.column !== 1)
-  const draining = allRuns.filter((run) => run.column === 1)
-  const fadeNames = [...new Set(fading.map((run) => `r${run.start}-${run.end}`))]
-  const drainNames = draining.map((run) => `d${run.start}-${run.end}`)
-  const unique = [...new Map(fading.map((run) => [`${run.start}-${run.end}`, run])).values()]
-  const trip = pct(TRIP_SECONDS)
+  const kinds: Array<[number, string, (run: Run) => string, string]> = [
+    [0, 'p', pillKeyframes, 'ease-in-out'],
+    [1, 'd', drainKeyframes, 'ease-in-out'],
+    [2, 'g', plantKeyframes, 'linear'],
+  ]
+  const sceneRules = kinds.flatMap(([column, kind, frames, easing]) => {
+    const own = allRuns.filter((run) => run.column === column)
+    return [
+      ...own.map(
+        (run) =>
+          `.${kind}${run.start}-${run.end} { animation: ${kind}${run.start}-${run.end} ${seconds}s ${easing} infinite }`,
+      ),
+      ...own.map(frames),
+    ]
+  })
+  const textRuns = [...new Map(allRuns.map((run) => [`${run.start}-${run.end}`, run])).values()]
   const drain = pct(DRAIN_SECONDS)
   return [
-    '.f, .run, .c, .disc, .float, .whirl, .suck { opacity: 0 }',
+    '.f, .run, .txt, .c, .whirl, .suck { opacity: 0 }',
     '.f0 { opacity: 1 }',
     ...MOMENTS.slice(1).map(
       (_, offset) => `.f${offset + 1} { animation: s${offset + 1} ${seconds}s linear infinite }`,
     ),
     ...MOMENTS.slice(1).map((_, offset) => skyKeyframes(offset + 1)),
-    ...fadeNames.map((name) => `.${name} { animation: ${name} ${seconds}s linear infinite }`),
-    ...unique.map(runKeyframes),
-    ...drainNames.map((name) => `.${name} { animation: ${name} ${seconds}s ease-in-out infinite }`),
-    ...draining.map(drainKeyframes),
+    ...sceneRules,
+    ...textRuns.map(
+      (run) =>
+        `.t${run.start}-${run.end} { animation: t${run.start}-${run.end} ${seconds}s linear infinite }`,
+    ),
+    ...textRuns.map(textKeyframes),
     ...MOMENTS.map(
       (_, index) => `.c${index} { animation: c${index} ${seconds}s ease-out infinite }`,
     ),
     ...MOMENTS.map((_, index) => captionKeyframes(index)),
-    `.wave { transform: translate(40px, -430px); animation: sweep ${seconds}s linear infinite }`,
-    `@keyframes sweep { 0% { transform: translate(-40px, 340px) } ${sweep}%, 100% { transform: translate(40px, -430px) } }`,
-    '.trip { animation: hue 0.9s linear infinite }',
-    '@keyframes hue { to { filter: hue-rotate(360deg) } }',
-    `.disc { animation: disc ${seconds}s linear infinite }`,
-    `@keyframes disc { 0% { transform: scale(0) rotate(0deg); opacity: 1 } ${trip * 0.42}% { transform: scale(1) rotate(200deg); opacity: 1 } ${trip * 0.78}% { transform: scale(1.25) rotate(360deg); opacity: 1 } ${trip}%, 100% { transform: scale(1.5) rotate(500deg); opacity: 0 } }`,
-    `.float { animation: float ${seconds}s linear infinite }`,
-    `@keyframes float { 0% { transform: scale(0) rotate(-40deg); opacity: 0 } ${trip * 0.3}% { transform: scale(1) rotate(0deg); opacity: 1 } ${trip * 0.72}% { transform: scale(1.2) rotate(70deg); opacity: 1 } ${trip}%, 100% { transform: scale(0.2) rotate(160deg); opacity: 0 } }`,
     `.whirl { animation: whirl ${seconds}s linear infinite }`,
     `@keyframes whirl { 0% { transform: rotate(0deg); opacity: 0 } ${drain * 0.14}% { opacity: 1 } ${drain * 0.74}% { opacity: 1 } ${drain}%, 100% { transform: rotate(1260deg); opacity: 0 } }`,
     `.suck { animation: suck ${seconds}s ease-in infinite }`,
-    `@keyframes suck { 0% { transform: rotate(0deg) translateX(150px) scale(1); opacity: 1 } ${drain * 0.48}% { transform: rotate(760deg) translateX(0) scale(0.1); opacity: 1 } ${drain * 0.5}%, 100% { transform: rotate(760deg) translateX(0) scale(0); opacity: 0 } }`,
+    `@keyframes suck { 0% { transform: rotate(0deg) translateX(84px) scale(1); opacity: 1 } ${drain * 0.48}% { transform: rotate(760deg) translateX(0) scale(0.1); opacity: 1 } ${drain * 0.5}%, 100% { transform: rotate(760deg) translateX(0) scale(0); opacity: 0 } }`,
     `.sun { animation: sun ${seconds}s linear infinite }`,
     `@keyframes sun { ${sun} 100% { transform: translate(${sunX(last.hour)}px, ${sunY(last.hour)}px); opacity: 0 } }`,
     `.moon { opacity: 0; animation: moon ${seconds}s linear infinite }`,
     `@keyframes moon { ${moon} }`,
-    '@media (prefers-reduced-motion: reduce) { .f, .run, .c, .sun, .moon, .wave, .trip, .disc, .float, .whirl, .suck { animation: none } .f4, .at4, .c4 { opacity: 1 } .f0:not(.f4) { opacity: 0 } }',
+    '@media (prefers-reduced-motion: reduce) { .f, .run, .txt, .c, .sun, .moon, .whirl, .suck { animation: none } .f4, .at4, .c4 { opacity: 1 } .f0:not(.f4) { opacity: 0 } }',
   ].join('\n')
 }
 
@@ -577,6 +601,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
   const animated = only === undefined
   const seconds = MOMENTS.length * FRAME_SECONDS
   const allRuns = runs()
+  const preview = stillOffset !== undefined
   const shown = allRuns.filter((run) => animated || (only >= run.start && only < run.end))
   const focus = MOMENTS[only ?? 4] as Moment
   const sceneAnimations = sceneStyles.cssText.replace(/\.ht-scene\s*\{[^}]*\}/, '')
@@ -585,24 +610,22 @@ function dayCycle(only?: number, stillOffset?: number): string {
     ({ index }) => animated || index === only,
   )
   const sky = moments.map(({ moment, index }) => skyMarkup(moment, index, `f f${index}`)).join('')
-  const boundary = (run: Run, span: number) => run.start * FRAME_SECONDS - span - seconds
-  const preview = stillOffset !== undefined
+  const boundary = (run: Run) => run.start * FRAME_SECONDS - DRAIN_SECONDS / 2 - seconds
+  const laundryRuns = allRuns.filter((run) => run.column === 1)
   const under = animated
-    ? allRuns
-        .filter((run) => run.column === 1)
-        .map((run) => whirlMarkup(boundary(run, DRAIN_SECONDS / 2), false))
-        .join('')
+    ? laundryRuns.map((run) => whirlMarkup(boundary(run), false)).join('')
     : preview
       ? whirlMarkup(0, true)
       : ''
-  const tiles = COLUMNS.map((_, column) => {
+  const scenes = COLUMNS.map((_, column) => {
+    const kind = ['p', 'd', 'g'][column]
+    const pivot = column === 2 ? origin(2, BOTTOM_Y) : origin(column)
     const groups = shown
-      .filter((run) => run.column === column)
+      .filter((run) => run.column === column && !(preview && column === 1))
       .map((run) => {
-        const kind = column === 1 ? 'd' : 'r'
         const at4 = run.start <= 4 && run.end > 4 ? ' at4' : ''
-        const style = animated && column === 1 ? ` style="${origin(1)}"` : ''
-        const content = tileContent(
+        const style = animated ? ` style="${pivot}"` : ''
+        const content = sceneContent(
           run.tile,
           COLUMNS[column]!,
           `t${column}r${run.start}-`,
@@ -611,23 +634,23 @@ function dayCycle(only?: number, stillOffset?: number): string {
         return `<g class="run ${kind}${run.start}-${run.end}${at4}"${style}>${content}</g>`
       })
       .join('')
-    return `<g clip-path="url(#tile${column})">${groups}</g>`
+    return `<g clip-path="url(#scene${column})">${groups}</g>`
   }).join('')
+  const texts = shown
+    .map((run) => {
+      const at4 = run.start <= 4 && run.end > 4 ? ' at4' : ''
+      return `<g class="txt t${run.start}-${run.end}${at4}">${textContent(run.tile, COLUMNS[run.column]!)}</g>`
+    })
+    .join('')
   const over = animated
-    ? allRuns
-        .map((run) => {
-          if (run.column === 0) return tripMarkup(boundary(run, TRIP_SECONDS * 0.42), false)
-          if (run.column === 1) return itemsMarkup(boundary(run, DRAIN_SECONDS / 2), false)
-          return leafMarkup(boundary(run, WAVE_SECONDS / 2))
-        })
-        .join('')
+    ? laundryRuns.map((run) => itemsMarkup(boundary(run), false)).join('')
     : preview
-      ? tripMarkup(0, true) + itemsMarkup(0, true) + leafMarkup(0, stillOffset)
+      ? itemsMarkup(0, true)
       : ''
-  const clips = COLUMNS.map(
-    (x, column) =>
-      `<clipPath id="tile${column}"><rect x="${x}" y="${TILES_Y}" width="${TILE_W}" height="${TILE_H}" rx="16"/></clipPath>`,
-  ).join('')
+  const clips = COLUMNS.map((x, column) => {
+    const left = x + TILE_W / 2 - SCENE_SIZE / 2
+    return `<clipPath id="scene${column}"><rect x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" rx="${SCENE_RX}"/></clipPath>`
+  }).join('')
   const strip = `<rect y="508" width="${WIDTH}" height="64" fill="#14131b" opacity="0.72"/>`
   const captions = moments.map(({ moment, index }) => captionMarkup(moment, index)).join('')
   const night = focus.hour > 21
@@ -642,7 +665,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
     animated || night
       ? `<g class="moon" transform="translate(820 52)"><circle r="24" fill="#e8e6f5"/><circle cx="9" cy="-5" r="20" fill="#1a2247"/></g>`
       : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round"><rect width="${WIDTH}" height="${HEIGHT}" rx="24"/></clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${under}${tiles}${over}${strip}${captions}</g></svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round"><rect width="${WIDTH}" height="${HEIGHT}" rx="24"/></clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${under}${scenes}${over}${texts}${strip}${captions}</g></svg>\n`
 }
 
 mkdirSync(OUT, { recursive: true })
