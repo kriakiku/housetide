@@ -14,6 +14,16 @@ NOW = at("2026-06-10T07:00:00+03:00")
         ("laundry", "laundry", "carry", "interval", 3),
         ("pills", "pills", "skip", "daily", 1),
         ("plant", "plant", "carry", "interval", 1),
+        ("teeth", "teeth", "skip", "daily", 1),
+        ("bed", "bed", "carry", "interval", 1),
+        ("dishes", "dishes", "carry", "daily", 1),
+        ("trash", "trash", "carry", "interval", 1),
+        ("vacuum", "vacuum", "carry", "interval", 1),
+        ("pet", "pet", "skip", "daily", 1),
+        ("bathroom", "bathroom", "carry", "interval", 1),
+        ("fridge", "fridge", "carry", "interval", 1),
+        ("window", "window", "carry", "interval", 1),
+        ("water", "water", "skip", "daily", 1),
         ("one_off", "generic", "carry", "once", 1),
     ],
 )
@@ -31,7 +41,22 @@ def test_templates_are_ready_to_create(
 
 
 def test_only_expected_templates() -> None:
-    assert set(templates(NOW, KYIV)) == {"laundry", "pills", "plant", "one_off"}
+    assert set(templates(NOW, KYIV)) == {
+        "laundry",
+        "pills",
+        "plant",
+        "teeth",
+        "bed",
+        "dishes",
+        "trash",
+        "vacuum",
+        "pet",
+        "bathroom",
+        "fridge",
+        "window",
+        "water",
+        "one_off",
+    }
 
 
 def test_laundry_details() -> None:

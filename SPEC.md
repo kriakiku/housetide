@@ -111,6 +111,7 @@ Scenes are pure functions from `scene` plus options to an SVG template, drawn in
 - `laundry`: `accumulating` a basket with a pile of colorful clothes that grows with `fill` in visible steps; `due` the pile overflows; rising `stink` adds wavy green stench lines and then flies; `running` the washing machine rumbles, drum turning, bubbles; `waiting` the machine has stopped, door with wet clothes, drips, and `stink` adds a musty cloud; `clean` folded laundry or a drying line with sparkles.
 - `pills`: a blister pack of seven drawn from `slots` when present: `taken` cells are popped and empty, `missed` cells keep their pill in place, slightly muted, `full` cells are normal, and the `current` cell always pulses, softly while it is upcoming, running or waiting and at full strength when `due`; `clean` the last `taken` cell gets a check; `stink` makes the pack look increasingly neglected. Without `slots` the cells come from the `day` option, earlier days popped and the rest full.
 - `plant`: a pot whose plant droops with `fill` and wilts with `stink`; `clean` perks up with water drops.
+- `teeth`, `bed`, `dishes`, `trash`, `vacuum`, `pet`, `bathroom`, `fridge`, `window`, `water`: each draws its own chore through all six states, building up with `fill` and getting visibly worse with `stink`.
 - `generic`: a ring that fills up like a tide, with stink as a warm tint.
 
 Text uses `Intl` for dates and relative times and `i18n.ts` for labels in English and Ukrainian, falling back to English.

@@ -20,6 +20,7 @@ Ignore a task and the scene lets you know about it.
 - **Chains of steps.** Load the washer, wash, hang it up. Each step can finish by hand or by a sensor.
 - **Automatic steps.** A step finishes when an entity stays above or below a value, or in a given state, for as long as you say. A short pause in a wash cycle doesn't count.
 - **Living scenes.** Laundry piles up, starts to smell, draws flies, shakes during the wash and sparkles when it's done. Pills and plants have their own, and everything else gets a tide that rises.
+- **Fourteen scenes and templates.** Teeth, sheets, dishes, trash, vacuuming, the cat, the bathroom, the fridge, windows and water each have their own little drama.
 - **Its own sidebar page.** Today's tasks, a full editor with templates, and a history with a day grid, streaks and an on-time rate.
 - **A dashboard card**, sensors for each task, a `todo` list, services and events for your own automations.
 
@@ -29,6 +30,14 @@ Ignore a task and the scene lets you know about it.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/others.svg" alt="Pill, plant and generic scenes" width="820">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/home.svg" alt="Teeth being brushed, fresh sheets, a full sink, an overflowing bin and a vacuum at work" width="100%">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/more.svg" alt="A hungry cat, a bathtub being scrubbed, a mouldy fridge, clean windows and a full glass of water" width="100%">
 </p>
 
 ## Install

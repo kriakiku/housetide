@@ -12,7 +12,22 @@ import { laundryParts, MAX_PILE } from './laundry.ts'
 import { pillsParts } from './pills.ts'
 import { MAX_DROOP, plantParts } from './plant.ts'
 
-const NAMES: SceneName[] = ['generic', 'pills', 'laundry', 'plant']
+const NAMES: SceneName[] = [
+  'generic',
+  'pills',
+  'laundry',
+  'plant',
+  'teeth',
+  'bed',
+  'dishes',
+  'trash',
+  'vacuum',
+  'pet',
+  'bathroom',
+  'fridge',
+  'window',
+  'water',
+]
 const STATES: SceneState[] = ['resting', 'accumulating', 'due', 'running', 'waiting', 'clean']
 
 function view(name: SceneName, state: SceneState, fill = 0, stink = 0, progress = 0.5): SceneView {

@@ -33,7 +33,22 @@ import {
 import type { Condition, FormErrors, ScheduleType, StageForm, TaskForm } from './model.ts'
 import { icon, iconStyles } from './tile.ts'
 
-const SCENES: SceneName[] = ['generic', 'pills', 'laundry', 'plant']
+const SCENES: SceneName[] = [
+  'generic',
+  'pills',
+  'laundry',
+  'plant',
+  'teeth',
+  'bed',
+  'dishes',
+  'trash',
+  'vacuum',
+  'pet',
+  'bathroom',
+  'fridge',
+  'window',
+  'water',
+]
 const SCHEDULES: ScheduleType[] = ['once', 'daily', 'weekly', 'interval']
 const WEEK = [0, 1, 2, 3, 4, 5, 6]
 

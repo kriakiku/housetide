@@ -163,7 +163,7 @@ def test_task_defaults_and_round_trip() -> None:
         ({"title": "   "}, "task.title: must not be empty"),
         ({"enabled": "yes"}, "task.enabled: must be true or false"),
         ({"on_missed": "later"}, "task.on_missed: must be one of carry, skip"),
-        ({"scene": "dishes"}, "task.scene: must be one of"),
+        ({"scene": "volcano"}, "task.scene: must be one of"),
         ({"stages": []}, "task.stages: must contain at least one stage"),
         ({"stages": "nope"}, "task.stages: must contain at least one stage"),
         ({"stages": [stage_dict("a"), stage_dict("a")]}, "task.stages[1].id: duplicate stage id"),

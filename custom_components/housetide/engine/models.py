@@ -6,7 +6,22 @@ from datetime import UTC, datetime
 from typing import Any, Literal, NoReturn, get_args
 
 OnMissed = Literal["carry", "skip"]
-SceneName = Literal["generic", "pills", "laundry", "plant"]
+SceneName = Literal[
+    "generic",
+    "pills",
+    "laundry",
+    "plant",
+    "teeth",
+    "bed",
+    "dishes",
+    "trash",
+    "vacuum",
+    "pet",
+    "bathroom",
+    "fridge",
+    "window",
+    "water",
+]
 Role = Literal["todo", "running", "waiting"]
 Anchor = Literal["completion", "schedule"]
 EventType = Literal[

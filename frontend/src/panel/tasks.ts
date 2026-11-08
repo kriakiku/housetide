@@ -13,7 +13,22 @@ import { icon, iconStyles } from './tile.ts'
 
 type Templates = Record<string, TaskDraft>
 
-const TEMPLATE_ORDER = ['laundry', 'pills', 'plant', 'one_off']
+const TEMPLATE_ORDER = [
+  'laundry',
+  'pills',
+  'plant',
+  'teeth',
+  'bed',
+  'dishes',
+  'trash',
+  'vacuum',
+  'pet',
+  'bathroom',
+  'fridge',
+  'window',
+  'water',
+  'one_off',
+]
 const MAX_RETENTION_DAYS = 36_500
 
 export class HousetideTasks extends LitElement {

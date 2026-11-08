@@ -467,6 +467,16 @@ const TEMPLATE_TITLES: Record<string, MessageKey> = {
   laundry: 'template_laundry',
   pills: 'template_pills',
   plant: 'template_plant',
+  teeth: 'template_teeth',
+  bed: 'template_bed',
+  dishes: 'template_dishes',
+  trash: 'template_trash',
+  vacuum: 'template_vacuum',
+  pet: 'template_pet',
+  bathroom: 'template_bathroom',
+  fridge: 'template_fridge',
+  window: 'template_window',
+  water: 'template_water',
   one_off: 'template_one_off',
 }
 
@@ -477,6 +487,16 @@ const STAGE_TEXT: Record<string, readonly [MessageKey, MessageKey]> = {
   take: ['template_stage_take', 'template_action_take'],
   water: ['template_stage_water', 'template_action_water'],
   do: ['template_stage_do', 'template_action_do'],
+  brush: ['template_stage_brush', 'template_action_brush'],
+  change_sheets: ['template_stage_change_sheets', 'template_action_change_sheets'],
+  wash_up: ['template_stage_wash_up', 'template_action_wash_up'],
+  take_out: ['template_stage_take_out', 'template_action_take_out'],
+  vacuum_floor: ['template_stage_vacuum_floor', 'template_action_vacuum_floor'],
+  feed: ['template_stage_feed', 'template_action_feed'],
+  scrub: ['template_stage_scrub', 'template_action_scrub'],
+  tidy: ['template_stage_tidy', 'template_action_tidy'],
+  wipe_glass: ['template_stage_wipe_glass', 'template_action_wipe_glass'],
+  drink: ['template_stage_drink', 'template_action_drink'],
 }
 
 export function templateTitle(name: string, i18n: I18n): string | null {

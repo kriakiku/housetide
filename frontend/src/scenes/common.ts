@@ -182,8 +182,7 @@ export function frame(
 }
 
 export function sceneSurface(scene: SceneView): { wall: string; floor: string } {
-  const drawn = scene.name === 'laundry' || scene.name === 'pills' || scene.name === 'plant'
-  if (drawn) return tileFor(scene.state, scene.stink)
+  if (scene.name !== 'generic') return tileFor(scene.state, scene.stink)
   const { wall } = tileFor(scene.state, 0)
   return { wall, floor: wall }
 }

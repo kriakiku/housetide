@@ -247,7 +247,22 @@ async def test_stats(client: Any, manager: HousetideManager) -> None:
 
 async def test_templates(client: Any) -> None:
     result = (await call(client, "templates"))["result"]
-    assert set(result) == {"laundry", "pills", "plant", "one_off"}
+    assert set(result) == {
+        "laundry",
+        "pills",
+        "plant",
+        "teeth",
+        "bed",
+        "dishes",
+        "trash",
+        "vacuum",
+        "pet",
+        "bathroom",
+        "fridge",
+        "window",
+        "water",
+        "one_off",
+    }
     assert "id" not in result["laundry"]
     created = await call(client, "task/create", task=result["laundry"])
     assert created["success"]

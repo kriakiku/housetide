@@ -1208,6 +1208,20 @@ gallery('laundry', [
   { label: 'Hang it up', name: 'laundry', state: 'waiting', fill: 1, stink: 0.5 },
   { label: 'Clean', name: 'laundry', state: 'clean' },
 ])
+gallery('home', [
+  { label: 'Brushing', name: 'teeth', state: 'running', fill: 1 },
+  { label: 'Fresh sheets', name: 'bed', state: 'clean' },
+  { label: 'Sink full', name: 'dishes', state: 'due', fill: 1, stink: 0.8 },
+  { label: 'Overflowing', name: 'trash', state: 'due', fill: 1, stink: 0.5 },
+  { label: 'Hunting dust', name: 'vacuum', state: 'running', fill: 1 },
+])
+gallery('more', [
+  { label: 'Feed me', name: 'pet', state: 'due', fill: 1 },
+  { label: 'Scrubbing', name: 'bathroom', state: 'running', fill: 1 },
+  { label: 'Science project', name: 'fridge', state: 'due', fill: 1, stink: 0.9 },
+  { label: 'Crystal clear', name: 'window', state: 'clean' },
+  { label: 'Topped up', name: 'water', state: 'clean' },
+])
 gallery('others', [
   { label: 'Time for a pill', name: 'pills', state: 'due', fill: 1 },
   { label: 'Taken', name: 'pills', state: 'clean' },
