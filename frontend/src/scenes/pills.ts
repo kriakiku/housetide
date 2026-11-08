@@ -1,7 +1,7 @@
-import { svg } from 'lit'
+import { nothing, svg } from 'lit'
 import type { TemplateResult } from 'lit'
 
-import type { SceneView } from '../types.ts'
+import type { PillSlot, SceneView } from '../types.ts'
 import {
   at,
   clamp01,
@@ -22,6 +22,7 @@ export type PillPhase = 'quiet' | 'ready' | 'lifted' | 'taken-pending' | 'popped
 
 export interface PillsParts {
   day: number
+  cells: readonly PillSlot[]
   phase: PillPhase
   pulse: boolean
   glow: number
@@ -41,12 +42,19 @@ const SLOTS: ReadonlyArray<readonly [number, number]> = [
   [116, 124],
 ]
 
+const STALE_TOP = '#8f8a84'
+const STALE_BOTTOM = '#aaa497'
 const NEGLECT_AT = [0.15, 0.45, 0.75] as const
 const GLOW_AT = [0.25, 0.5, 0.75] as const
 
 export function pillsParts(scene: SceneView, day = 3): PillsParts {
   const { state, stink, fill } = scene
-  const index = Number.isFinite(day) ? ((Math.trunc(day) % 7) + 7) % 7 : 3
+  const fallback = Number.isFinite(day) ? ((Math.trunc(day) % 7) + 7) % 7 : 3
+  const given = scene.slots?.length === SLOTS.length ? scene.slots : undefined
+  const cells = given ?? SLOTS.map((_, i): PillSlot => (i < fallback ? 'taken' : 'full'))
+  let focus = fallback
+  if (given) focus = state === 'clean' ? given.lastIndexOf('taken') : given.indexOf('current')
+  const current = given?.[focus] === 'current'
   const neglect = state === 'clean' ? 0 : reached(stink, NEGLECT_AT)
   const phases: Record<SceneView['state'], PillPhase> = {
     resting: 'quiet',
@@ -63,9 +71,10 @@ export function pillsParts(scene: SceneView, day = 3): PillsParts {
   if (neglect >= 1) mood = 'worried'
   if (neglect >= 2) mood = 'sick'
   return {
-    day: index,
+    day: focus,
+    cells,
     phase,
-    pulse: state === 'due',
+    pulse: state === 'due' || current,
     glow: state === 'accumulating' ? reached(fill, GLOW_AT) : 0,
     neglect,
     fade: state === 'clean' ? 0 : clamp01(stink) * 0.7,
@@ -74,11 +83,11 @@ export function pillsParts(scene: SceneView, day = 3): PillsParts {
   }
 }
 
-function capsule(top: string, bottom: string): Art {
+function capsule(top: string, bottom: string, shine = 0.6): Art {
   return svg`
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill=${top} />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill=${bottom} />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=${shine} />
   `
 }
 
@@ -86,6 +95,10 @@ function well(x: number, y: number, popped: boolean): Art {
   return popped
     ? svg`<rect x=${x - 13} y=${y - 25} width="26" height="50" rx="13" fill="#545c78" /><path d=${`M${x - 8} ${y + 8}a8 11 0 0 0 16 0`} fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" />`
     : svg`<rect x=${x - 13.5} y=${y - 25.5} width="27" height="51" rx="13.5" fill=${C.metal} />`
+}
+
+function stale(x: number, y: number): Art {
+  return at(x, y, capsule(STALE_TOP, STALE_BOTTOM, 0.15), -14, 0.84)
 }
 
 function glass(x: number, y: number): Art {
@@ -165,23 +178,34 @@ export function pills(scene: SceneView, options?: SceneOptions): TemplateResult 
 
   const others = SLOTS.flatMap(([x, y], i) => {
     if (i === parts.day) return []
-    const popped = i < parts.day
-    return [
-      part(
-        popped ? 'empty-well' : 'pill',
-        [well(x, y, popped), when(!popped, () => at(x, y, capsule(pillTop, pillBottom)))],
-        i,
-      ),
-    ]
+    const cell = parts.cells[i]
+    if (cell === 'taken') return [part('empty-well', well(x, y, true), i)]
+    if (cell === 'missed') return [part('missed-pill', [well(x, y, false), stale(x, y)], i)]
+    return [part('pill', [well(x, y, false), at(x, y, capsule(pillTop, pillBottom))], i)]
   })
 
+  const focused = parts.day >= 0
   const halo = (art: Art): Art => at(nx, ny, parts.pulse ? motion('pulse', art) : art)
 
+  const haloOpacity =
+    parts.phase === 'ready' ? 1 : Math.max(parts.glow * 0.3, parts.pulse ? 0.45 : 0)
+  const ring = when(parts.pulse || parts.glow > 0, () =>
+    part(
+      'halo',
+      halo(
+        svg`<rect x="-18.5" y="-30.5" width="37" height="61" rx="18.5" fill="none" stroke=${C.sun} stroke-width="5" opacity=${haloOpacity} />`,
+      ),
+    ),
+  )
+
   let next: Art
-  if (parts.phase === 'popped' || parts.phase === 'taken-pending') {
-    next = [part('empty-well', well(nx, ny, true), parts.day)]
+  if (!focused) {
+    next = nothing
+  } else if (parts.phase === 'popped' || parts.phase === 'taken-pending') {
+    next = [ring, part('empty-well', well(nx, ny, true), parts.day)]
   } else if (parts.phase === 'lifted') {
     next = [
+      ring,
       part('empty-well', well(nx, ny, true), parts.day),
       part(
         'next-pill',
@@ -190,16 +214,8 @@ export function pills(scene: SceneView, options?: SceneOptions): TemplateResult 
       ),
     ]
   } else {
-    const glowOpacity = parts.pulse ? 1 : parts.glow * 0.3
     next = [
-      when(parts.pulse || parts.glow > 0, () =>
-        part(
-          'halo',
-          halo(
-            svg`<rect x="-18.5" y="-30.5" width="37" height="61" rx="18.5" fill="none" stroke=${C.sun} stroke-width="5" opacity=${glowOpacity} />`,
-          ),
-        ),
-      ),
+      ring,
       well(nx, ny, false),
       part(
         'next-pill',
@@ -228,7 +244,7 @@ export function pills(scene: SceneView, options?: SceneOptions): TemplateResult 
       next,
       face(148, 124, parts.mood, mix(C.fly, '#4d4b45', parts.fade), 0.82),
       when(parts.neglect > 0, () => dust(parts.neglect)),
-      when(parts.phase === 'popped', () => check(nx, ny)),
+      when(focused && parts.phase === 'popped', () => check(nx, ny)),
     ]),
     parts.tilt,
     withGlass ? 0.84 : 1,

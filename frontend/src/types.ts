@@ -1,5 +1,6 @@
 export type SceneName = 'generic' | 'pills' | 'laundry' | 'plant'
 export type SceneState = 'resting' | 'accumulating' | 'due' | 'running' | 'waiting' | 'clean'
+export type PillSlot = 'taken' | 'missed' | 'current' | 'full'
 export type OnMissed = 'carry' | 'skip'
 export type StageRole = 'todo' | 'running' | 'waiting'
 export type IntervalAnchor = 'completion' | 'schedule'
@@ -82,6 +83,12 @@ export interface Task {
 
 export type TaskDraft = Omit<Task, 'id'> & { id?: string }
 
+export interface Pack {
+  cycle: number
+  taken: number[]
+  missed: number[]
+}
+
 export interface Runtime {
   task_id: string
   occurrence_id: string
@@ -92,6 +99,7 @@ export interface Runtime {
   last_completed_at: string | null
   next_due_at: string | null
   clean_until: string | null
+  pack: Pack | null
   undo: Runtime | null
 }
 
@@ -101,6 +109,7 @@ export interface SceneView {
   fill: number
   stink: number
   progress: number
+  slots?: PillSlot[]
 }
 
 export interface TaskView {

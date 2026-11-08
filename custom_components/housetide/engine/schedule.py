@@ -1,7 +1,10 @@
+from bisect import bisect_left
+from collections.abc import Hashable
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from .models import (
+    PACK_SIZE,
     DailySchedule,
     IntervalSchedule,
     OnceSchedule,
@@ -9,6 +12,8 @@ from .models import (
     WeeklySchedule,
     as_utc,
 )
+
+SLOT_EPOCH = date(2000, 1, 3)
 
 
 def parse_hhmm(value: str) -> time:
@@ -57,6 +62,37 @@ def first_due(
     if isinstance(schedule, OnceSchedule):
         return as_utc(schedule.due)
     return next_due(schedule, now, zone, last_completed)
+
+
+def dose_slot(schedule: Schedule, due: datetime, zone: ZoneInfo) -> tuple[int, int]:
+    days = (local_date(as_utc(due), zone) - SLOT_EPOCH).days
+    match schedule:
+        case OnceSchedule():
+            return 0, 0
+        case DailySchedule():
+            period = days
+        case WeeklySchedule(weekdays=weekdays):
+            period = days // 7 * len(weekdays) + bisect_left(weekdays, days % 7)
+        case IntervalSchedule(every_days=every_days):
+            period = days // every_days
+        case _:
+            raise TypeError(f"unsupported schedule: {schedule!r}")
+    return divmod(period, PACK_SIZE)
+
+
+def on_schedule(schedule: Schedule, due: datetime, zone: ZoneInfo) -> bool:
+    if isinstance(schedule, WeeklySchedule):
+        return local_date(as_utc(due), zone).weekday() in schedule.weekdays
+    return True
+
+
+def slot_rhythm(schedule: Schedule) -> Hashable:
+    match schedule:
+        case WeeklySchedule(weekdays=weekdays):
+            return "weekly", weekdays
+        case IntervalSchedule(every_days=every_days):
+            return "interval", every_days
+    return type(schedule).__name__
 
 
 def _first_matching(

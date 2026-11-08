@@ -33,10 +33,13 @@ Trigger:
 `{entity_id, above: float|null, below: float|null, state: str|null, for_seconds: int>=0}`. Exactly one of `above`, `below`, `state` is set.
 
 Runtime, stored per task:
-`{task_id, occurrence_id, due_at: ISO|null, stage_index: int, stage_entered_at: ISO|null, started_at: ISO|null, last_completed_at: ISO|null, next_due_at: ISO|null, clean_until: ISO|null, undo: Runtime|null (one level, undo of undo is null)}`
+`{task_id, occurrence_id, due_at: ISO|null, stage_index: int, stage_entered_at: ISO|null, started_at: ISO|null, last_completed_at: ISO|null, next_due_at: ISO|null, clean_until: ISO|null, pack: Pack|null, undo: Runtime|null (one level, undo of undo is null)}`. Stored runtimes without `pack` load as null.
+
+Pack, the blister in use:
+`{cycle: int, taken: [slot...], missed: [slot...]}`, where a slot is 0..6 and a slot is in at most one list.
 
 TaskView, computed by `views.task_view(task, runtime, now)`:
-`{task_id, title, icon, color, status, stage_index, stage_count, stage_id, stage_title, action, role, due_at, next_due_at, started_at, last_completed_at, is_today: bool, overdue_seconds: int, can_advance: bool, can_skip: bool, can_undo: bool, automated: bool, scene: {name, state, fill: 0..1, stink: 0..1, progress: 0..1}}`
+`{task_id, title, icon, color, status, stage_index, stage_count, stage_id, stage_title, action, role, due_at, next_due_at, started_at, last_completed_at, is_today: bool, overdue_seconds: int, can_advance: bool, can_skip: bool, can_undo: bool, automated: bool, scene: {name, state, fill: 0..1, stink: 0..1, progress: 0..1, slots?: ("taken"|"missed"|"current"|"full")[7]}}`. `slots` is present only when the scene name is `pills`.
 
 Status values: `upcoming` (not due yet), `due`, `overdue` (past due), `in_progress` (past the first stage or the first stage was started), `clean` (finished recently, inside clean_for_minutes), `done` (one-off finished), `disabled`.
 
@@ -64,6 +67,19 @@ Skip ends the occurrence without completing it and logs `skipped`. A rollover ha
 Triggers are active for the current stage at all times, including when a task is `upcoming` or `clean`: starting the washing machine early starts the occurrence early, and the next due date is computed after that completion. A trigger fires only when its condition has held continuously for `for_seconds`. Values `unknown`, `unavailable` and non-numeric states for numeric triggers never match, and they do not reset a running hold; only a real value that fails the condition does. After a restart the conditions are evaluated afresh, with the hold starting at startup.
 
 Undo restores the runtime as it was before the last transition, once, and logs `undone`.
+
+Every occurrence maps to a `(cycle, slot)` of a seven-cell pack by `schedule.dose_slot(schedule, due, zone)`, from the due date in the Home Assistant time zone and counted from Monday 2000-01-03:
+
+- `daily`: the slot is the weekday (Monday = 0) and the pack is one ISO week.
+- `weekly`: with the weekdays W sorted, `period = whole weeks since the epoch * len(W) + index of the due weekday in W`.
+- `interval`: `period = whole days since the epoch div every_days`.
+- `once`: slot 0, cycle 0.
+
+For `weekly` and `interval`, `slot = period mod 7` and `cycle = period div 7`. A once-a-week task uses one pack for seven weeks, and because the counter is absolute, the current slot moves every week and a new task usually starts mid-pack.
+
+Completing an occurrence records its slot as taken, skipping or a missed rollover records it as missed. A record for a different cycle replaces the pack with a fresh one, and a later record for a slot replaces the earlier one. An occurrence always uses the slot of its own due date, so early completion marks the slot of the occurrence that was completed and a carried occurrence keeps its slot until it is done. An occurrence on a weekday the schedule no longer has (a started occurrence kept through an edit of the weekdays) records nothing, and while it is present the cell of the next scheduled occurrence is `current`, so one cell is popped for it at most once. Undo brings the previous pack back through the runtime snapshot. Packs are recorded for every task whatever its scene. Editing a schedule so that the mapping changes (another kind, other weekdays, another `every_days`) clears the pack; changing only the time or the anchor keeps it.
+
+`scene.slots` shows the pack in view. While the status is `clean` or `done`, the finished occurrence is in view: the stored pack is shown as it is, with no `current`, so the last dose of a pack stays visibly taken until the clean period ends. Otherwise the present occurrence is in view: its slot is `current`, and a stored pack of another cycle is ignored, which refills the pack. `missed` is a slot recorded as missed and `taken` one recorded as taken. Every other slot is `full`, including past ones with no record, so doses that were skipped, missed or never recorded stay in the pack until it changes.
 
 `today` means due at or before the end of the local day, or already in progress or overdue.
 
@@ -93,7 +109,7 @@ The frontend bundle is served at `/housetide_static/housetide.js` with cache bus
 Scenes are pure functions from `scene` plus options to an SVG template, drawn in flat style and visually delightful, using CSS transform and opacity animations only. They stop animating when `animations` is false, when `prefers-reduced-motion` is set, and on hidden pages.
 
 - `laundry`: `accumulating` a basket with a pile of colorful clothes that grows with `fill` in visible steps; `due` the pile overflows; rising `stink` adds wavy green stench lines and then flies; `running` the washing machine rumbles, drum turning, bubbles; `waiting` the machine has stopped, door with wet clothes, drips, and `stink` adds a musty cloud; `clean` folded laundry or a drying line with sparkles.
-- `pills`: a blister pack of seven; `due` the next pill pulses; `clean` that pill is popped with a check; `stink` makes it look increasingly neglected.
+- `pills`: a blister pack of seven drawn from `slots` when present: `taken` cells are popped and empty, `missed` cells keep a small, grey, tilted pill, `full` cells are normal, and the `current` cell always pulses, softly while it is upcoming, running or waiting and at full strength when `due`; `clean` the last `taken` cell gets a check; `stink` makes the pack look increasingly neglected. Without `slots` the cells come from the `day` option, earlier days popped and the rest full.
 - `plant`: a pot whose plant droops with `fill` and wilts with `stink`; `clean` perks up with water drops.
 - `generic`: a ring that fills up like a tide, with stink as a warm tint.
 

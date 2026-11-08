@@ -10,12 +10,13 @@ from .models import (
     HistoryEvent,
     IntervalSchedule,
     OnceSchedule,
+    Pack,
     Runtime,
     Stage,
     Task,
     as_utc,
 )
-from .schedule import first_due, next_due
+from .schedule import dose_slot, first_due, next_due, on_schedule, slot_rhythm
 
 NewId = Callable[[], str]
 
@@ -126,6 +127,7 @@ def skip(
         stage_entered_at=now,
         started_at=None,
         next_due_at=_following(task, due, zone, runtime.last_completed_at),
+        pack=_recorded(task, runtime, zone, taken=False),
         undo=replace(runtime, undo=None),
     )
     return Transition(updated, (event,))
@@ -175,6 +177,7 @@ def rollover(
             due_at=moment,
             stage_entered_at=moment,
             next_due_at=_following(task, moment, zone, current.last_completed_at),
+            pack=_recorded(task, current, zone, taken=False),
             undo=None,
         )
     return Transition(current, tuple(events))
@@ -207,6 +210,8 @@ def reconcile(
             )
         elif is_started(runtime):
             updated = replace(updated, stage_index=index)
+    if slot_rhythm(old.schedule) != slot_rhythm(new.schedule):
+        updated = replace(updated, pack=None)
     if schedule_changed or (re_enabled and not finished):
         if is_started(updated):
             if updated.due_at is not None:
@@ -300,9 +305,21 @@ def _complete(
         last_completed_at=now,
         next_due_at=_following(task, due, zone, now),
         clean_until=now + timedelta(minutes=task.clean_for_minutes),
+        pack=_recorded(task, runtime, zone, taken=True),
         undo=replace(runtime, undo=None),
     )
     return Transition(updated, (event,))
+
+
+def _recorded(task: Task, runtime: Runtime, zone: ZoneInfo, *, taken: bool) -> Pack | None:
+    if runtime.due_at is None or not on_schedule(task.schedule, runtime.due_at, zone):
+        return runtime.pack
+    cycle, slot = dose_slot(task.schedule, runtime.due_at, zone)
+    pack = runtime.pack if runtime.pack is not None and runtime.pack.cycle == cycle else Pack(cycle)
+    kept_taken = {*pack.taken} - {slot}
+    kept_missed = {*pack.missed} - {slot}
+    (kept_taken if taken else kept_missed).add(slot)
+    return Pack(cycle, tuple(sorted(kept_taken)), tuple(sorted(kept_missed)))
 
 
 def _next_occurrence(

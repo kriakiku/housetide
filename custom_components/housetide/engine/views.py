@@ -3,11 +3,12 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from .machine import can_advance, can_skip, current_stage, is_finished, is_started
-from .models import Runtime, Stage, Task, as_utc, format_instant
-from .schedule import start_of_next_day
+from .models import PACK_SIZE, Runtime, Stage, Task, as_utc, format_instant
+from .schedule import dose_slot, start_of_next_day
 
 Status = Literal["upcoming", "due", "overdue", "in_progress", "clean", "done", "disabled"]
 SceneState = Literal["resting", "accumulating", "due", "running", "waiting", "clean"]
+SlotState = Literal["taken", "missed", "current", "full"]
 
 
 def _clamp(value: float) -> float:
@@ -88,6 +89,26 @@ def scene_state(status: Status, stage: Stage, fill: float, completed: bool) -> S
     return "resting"
 
 
+def scene_slots(task: Task, runtime: Runtime, status: Status, zone: ZoneInfo) -> list[SlotState]:
+    pack = runtime.pack
+    current = None
+    if status not in ("clean", "done") and runtime.due_at is not None:
+        cycle, current = dose_slot(task.schedule, runtime.due_at, zone)
+        if pack is not None and pack.cycle != cycle:
+            pack = None
+    taken = () if pack is None else pack.taken
+    missed = () if pack is None else pack.missed
+
+    def slot_state(slot: int) -> SlotState:
+        if slot == current:
+            return "current"
+        if slot in taken:
+            return "taken"
+        return "missed" if slot in missed else "full"
+
+    return [slot_state(slot) for slot in range(PACK_SIZE)]
+
+
 def task_view(
     task: Task, runtime: Runtime, now: datetime, zone: ZoneInfo | None = None
 ) -> dict[str, Any]:
@@ -102,6 +123,15 @@ def task_view(
     fill = 0.0 if status == "disabled" else scene_fill(runtime, now)
     state = scene_state(status, stage, fill, runtime.last_completed_at is not None)
     progress = 1.0 if state == "clean" else _clamp(runtime.stage_index / len(task.stages))
+    scene: dict[str, Any] = {
+        "name": task.scene,
+        "state": state,
+        "fill": fill,
+        "stink": scene_stink(task, runtime, stage, status, now),
+        "progress": progress,
+    }
+    if task.scene == "pills":
+        scene["slots"] = scene_slots(task, runtime, status, tz)
     return {
         "task_id": task.id,
         "title": task.title,
@@ -124,11 +154,5 @@ def task_view(
         "can_skip": can_skip(task, runtime),
         "can_undo": runtime.undo is not None,
         "automated": stage.complete_when is not None and bool(stage.complete_when.entity_id),
-        "scene": {
-            "name": task.scene,
-            "state": state,
-            "fill": fill,
-            "stink": scene_stink(task, runtime, stage, status, now),
-            "progress": progress,
-        },
+        "scene": scene,
     }

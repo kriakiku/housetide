@@ -18,6 +18,7 @@ DEFAULT_CLEAN_FOR_MINUTES = 720
 DEFAULT_GRACE_HOURS = 24
 DEFAULT_HISTORY_RETENTION_DAYS = 365
 MAX_DAYS = 36500
+PACK_SIZE = 7
 INDETERMINATE_STATES = frozenset({"unknown", "unavailable"})
 
 _TIME_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
@@ -404,6 +405,34 @@ def _stages(value: Any, path: str) -> tuple[Stage, ...]:
     return stages
 
 
+@dataclass(frozen=True, slots=True)
+class Pack:
+    cycle: int
+    taken: tuple[int, ...] = ()
+    missed: tuple[int, ...] = ()
+
+    @classmethod
+    def from_dict(cls, value: Any, path: str = "pack") -> Pack:
+        data = _mapping(value, path, frozenset({"cycle", "taken", "missed"}))
+        return cls(
+            cycle=_integer(data, "cycle", path, minimum=-MAX_DAYS),
+            taken=_slots(data.get("taken", ()), f"{path}.taken"),
+            missed=_slots(data.get("missed", ()), f"{path}.missed"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"cycle": self.cycle, "taken": list(self.taken), "missed": list(self.missed)}
+
+
+def _slots(value: Any, path: str) -> tuple[int, ...]:
+    if not isinstance(value, list | tuple):
+        _fail(path, "must be a list")
+    for slot in value:
+        if isinstance(slot, bool) or not isinstance(slot, int) or not 0 <= slot < PACK_SIZE:
+            _fail(path, f"must contain only integers from 0 to {PACK_SIZE - 1}")
+    return tuple(sorted(set(value)))
+
+
 _RUNTIME_FIELDS = frozenset(
     {
         "task_id",
@@ -415,6 +444,7 @@ _RUNTIME_FIELDS = frozenset(
         "last_completed_at",
         "next_due_at",
         "clean_until",
+        "pack",
         "undo",
     }
 )
@@ -431,12 +461,14 @@ class Runtime:
     last_completed_at: datetime | None = None
     next_due_at: datetime | None = None
     clean_until: datetime | None = None
+    pack: Pack | None = None
     undo: Runtime | None = None
 
     @classmethod
     def from_dict(cls, value: Any, path: str = "runtime") -> Runtime:
         data = _mapping(value, path, _RUNTIME_FIELDS)
         undo = data.get("undo")
+        pack = data.get("pack")
         restored = None
         if undo is not None:
             nested = dict(_mapping(undo, f"{path}.undo", _RUNTIME_FIELDS))
@@ -452,6 +484,7 @@ class Runtime:
             last_completed_at=_optional_instant(data, "last_completed_at", path),
             next_due_at=_optional_instant(data, "next_due_at", path),
             clean_until=_optional_instant(data, "clean_until", path),
+            pack=None if pack is None else Pack.from_dict(pack, f"{path}.pack"),
             undo=restored,
         )
 
@@ -466,6 +499,7 @@ class Runtime:
             "last_completed_at": format_instant(self.last_completed_at),
             "next_due_at": format_instant(self.next_due_at),
             "clean_until": format_instant(self.clean_until),
+            "pack": None if self.pack is None else self.pack.to_dict(),
             "undo": None if self.undo is None else self.undo.to_dict(),
         }
 

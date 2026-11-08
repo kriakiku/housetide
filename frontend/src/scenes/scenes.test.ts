@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { render } from 'lit'
 
 import { sceneStyles } from '../styles.ts'
-import type { SceneName, SceneState, SceneView } from '../types.ts'
+import type { PillSlot, SceneName, SceneState, SceneView } from '../types.ts'
 import { genericParts } from './generic.ts'
 import { renderScene, sceneFor, generic, laundry, pills, plant } from './index.ts'
 import type { SceneOptions } from './index.ts'
@@ -216,6 +216,120 @@ describe('pills', () => {
     expect(count(draw(view('pills', 'due', 1, 0.5)), 'cobweb')).toBe(1)
     expect(count(draw(view('pills', 'due', 1, 0.2)), 'cobweb')).toBe(0)
     expect(count(draw(view('pills', 'due', 1, 0.8)), 'spider')).toBe(1)
+  })
+})
+
+describe('pills with real slots', () => {
+  const CODES: Record<string, PillSlot> = { t: 'taken', m: 'missed', c: 'current', f: 'full' }
+  const slots = (row: string): PillSlot[] => row.split('').map((code) => CODES[code] ?? 'full')
+  const dosed = (state: SceneState, row: string, stink = 0): SceneView => ({
+    ...view('pills', state, 1, stink),
+    slots: slots(row),
+  })
+  const indexes = (root: Element, name: string): (string | null)[] =>
+    [...root.querySelectorAll(`[data-part="${name}"]`)].map((el) => el.getAttribute('data-index'))
+
+  test('taken cells are popped and empty', () => {
+    const root = draw(dosed('due', 'ttcffff'))
+    expect(indexes(root, 'empty-well')).toEqual(['0', '1'])
+    expect(root.querySelector('[data-part="pill"][data-index="0"]')).toBeNull()
+  })
+
+  test('the current cell pulses when due', () => {
+    const root = draw(dosed('due', 'ffffcff'))
+    expect(indexes(root, 'next-pill')).toEqual(['4'])
+    expect(root.querySelector('[data-part="next-pill"] .ht-a-throb')).not.toBeNull()
+    expect(root.querySelector('[data-part="halo"] .ht-a-pulse')).not.toBeNull()
+  })
+
+  test.each(['resting', 'accumulating'] as const)('a current cell pulses while %s', (state) => {
+    const root = draw(dosed(state, 'tcfffff'))
+    expect(indexes(root, 'next-pill')).toEqual(['1'])
+    expect(root.querySelector('[data-part="next-pill"] .ht-a-throb')).not.toBeNull()
+    expect(root.querySelector('[data-part="halo"] .ht-a-pulse')).not.toBeNull()
+  })
+
+  test.each(['running', 'waiting'] as const)('a current cell pulses while %s', (state) => {
+    const root = draw(dosed(state, 'tcfffff'))
+    expect(root.querySelector('[data-part="halo"] .ht-a-pulse')).not.toBeNull()
+  })
+
+  test('being due is louder than being upcoming', () => {
+    const ring = (state: SceneState): string | null | undefined =>
+      draw(dosed(state, 'tcfffff'))
+        .querySelector('[data-part="halo"] rect')
+        ?.getAttribute('opacity')
+    expect(ring('due')).toBe('1')
+    expect(Number(ring('resting'))).toBeLessThan(1)
+  })
+
+  test('a pack with no current cell does not pulse', () => {
+    const root = draw(dosed('resting', 'ttfffff'))
+    expect(root.querySelector('.ht-a-throb')).toBeNull()
+    expect(root.querySelector('.ht-a-pulse')).toBeNull()
+  })
+
+  test('without slots only a due pill pulses', () => {
+    const root = draw(view('pills', 'accumulating', 1))
+    expect(root.querySelector('.ht-a-throb')).toBeNull()
+    expect(root.querySelector('.ht-a-pulse')).toBeNull()
+  })
+
+  test('missed cells keep their pill but look neglected', () => {
+    const root = draw(dosed('due', 'mmcffff'))
+    expect(indexes(root, 'missed-pill')).toEqual(['0', '1'])
+    expect(indexes(root, 'empty-well')).toEqual([])
+    const pill = root.querySelector('[data-part="pill"]')?.innerHTML
+    const missed = root.querySelector('[data-part="missed-pill"]')?.innerHTML
+    expect(missed).toBeDefined()
+    expect(missed).not.toBe(pill)
+  })
+
+  test('missed cells stay different from full ones when the pack goes stale', () => {
+    const root = draw(dosed('due', 'mfcffff', 1))
+    const fill = (name: string): string | null | undefined =>
+      root.querySelector(`[data-part="${name}"] g rect`)?.getAttribute('fill')
+    expect(fill('missed-pill')).not.toBe(fill('pill'))
+  })
+
+  test('full cells are normal pills', () => {
+    const root = draw(dosed('due', 'fffcfff'))
+    expect(indexes(root, 'pill')).toEqual(['0', '1', '2', '4', '5', '6'])
+  })
+
+  test('clean puts the check on the last taken cell', () => {
+    const root = draw(dosed('clean', 'tmtffff'))
+    expect(pillsParts(dosed('clean', 'tmtffff')).day).toBe(2)
+    expect(count(root, 'check')).toBe(1)
+    expect(indexes(root, 'empty-well')).toEqual(['0', '2'])
+    expect(indexes(root, 'missed-pill')).toEqual(['1'])
+    expect(count(root, 'next-pill')).toBe(0)
+  })
+
+  test('nothing is singled out without a focus cell', () => {
+    const resting = draw(dosed('resting', 'mffffff'))
+    expect(count(resting, 'next-pill')).toBe(0)
+    expect(count(resting, 'halo')).toBe(0)
+    expect(count(resting, 'pill')).toBe(6)
+    const clean = draw(dosed('clean', 'fffffff'))
+    expect(count(clean, 'check')).toBe(0)
+    expect(count(clean, 'pill')).toBe(7)
+  })
+
+  test('slots win over the day option', () => {
+    expect(pillsParts(dosed('due', 'fcfffff'), 5).day).toBe(1)
+  })
+
+  test('without valid slots the fixed picture stays', () => {
+    const fixed = pillsParts(view('pills', 'due', 1), 2)
+    expect(fixed.day).toBe(2)
+    expect(fixed.cells).toEqual(slots('ttfffff'))
+    const short = { ...view('pills', 'due', 1), slots: slots('cff') }
+    expect(pillsParts(short, 2).day).toBe(2)
+    const root = draw(view('pills', 'due', 1), { day: 2 })
+    expect(count(root, 'missed-pill')).toBe(0)
+    expect(indexes(root, 'empty-well')).toEqual(['0', '1'])
+    expect(indexes(root, 'next-pill')).toEqual(['2'])
   })
 })
 

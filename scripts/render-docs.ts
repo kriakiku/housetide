@@ -12,6 +12,7 @@ import {
   sparkle,
 } from '../frontend/src/scenes/common.ts'
 import { renderScene } from '../frontend/src/scenes/index.ts'
+import { pillsParts, type PillsParts } from '../frontend/src/scenes/pills.ts'
 import { plantParts, type PlantParts } from '../frontend/src/scenes/plant.ts'
 import { sceneStyles } from '../frontend/src/styles.ts'
 
@@ -26,6 +27,7 @@ interface Sample {
   state: string
   fill?: number
   stink?: number
+  slots?: readonly string[]
 }
 
 function serialize(value: unknown): string {
@@ -99,14 +101,19 @@ const pill = (
   status: string,
   button: string,
   tone: Tile['tone'],
+  slots: readonly string[],
 ): Tile => ({
   title: 'Morning pills',
   stage,
   status,
   button,
   tone,
-  scene: { name: 'pills', state, fill },
+  scene: { name: 'pills', state, fill, slots },
 })
+
+const THIS_MORNING = ['taken', 'taken', 'missed', 'current', 'full', 'full', 'full']
+const TAKEN_TODAY = ['taken', 'taken', 'missed', 'taken', 'full', 'full', 'full']
+const TONIGHT = ['taken', 'taken', 'missed', 'taken', 'current', 'full', 'full']
 
 const wash = (
   state: string,
@@ -141,9 +148,17 @@ const green = (
   scene: { name: 'plant', state, fill, stink },
 })
 
-const pillsWaiting = pill('accumulating', 0.9, 'Take your pills', 'in 1 h', 'Do early', 'quiet')
-const pillsDue = pill('due', 1, 'Take your pills', 'Due now', 'Done', 'loud')
-const pillsDone = pill('clean', 0, 'Take your pills', 'Done for today', 'Done', 'done')
+const pillsWaiting = pill(
+  'accumulating',
+  0.9,
+  'Take your pills',
+  'in 1 h',
+  'Do early',
+  'quiet',
+  THIS_MORNING,
+)
+const pillsDue = pill('due', 1, 'Take your pills', 'Due now', 'Done', 'loud', THIS_MORNING)
+const pillsDone = pill('clean', 0, 'Take your pills', 'Done for today', 'Done', 'done', TAKEN_TODAY)
 const plantLater = green('accumulating', 0.6, 0, 'today at 15:00', 'Do early', 'quiet')
 const plantDue = green('due', 1, 0.4, 'Due now', 'Done', 'loud')
 const plantDone = green('clean', 0, 0, 'Done for today', 'Done', 'done')
@@ -244,7 +259,7 @@ const MOMENTS: Moment[] = [
     hour: 22.5,
     caption: 'Tomorrow the tide comes in again',
     sky: ['#0d1330', '#28315c'],
-    pills: pill('resting', 0, 'Take your pills', 'tomorrow at 08:00', 'Do early', 'quiet'),
+    pills: pill('resting', 0, 'Take your pills', 'tomorrow at 08:00', 'Do early', 'quiet', TONIGHT),
     laundry: wash('accumulating', 0.08, 0, 'Collect and load', 'in 7 days', 'Do early', 'quiet'),
     plant: green('resting', 0, 0, 'in 7 days', 'Do early', 'quiet'),
   },
@@ -451,28 +466,6 @@ function stops(name: string, start: number, end: number, enter: Stop[], exit: St
   return `@keyframes ${name} { ${before}${body}${after} }`
 }
 
-const filterState = (blur: number, hue: number, saturate: number) =>
-  `filter: blur(${blur}px) hue-rotate(${hue}deg) saturate(${saturate})`
-
-function pillKeyframes({ start, end }: Run): string {
-  const here = `opacity: 1; ${filterState(0, 0, 1)}; transform: scale(1) rotate(0deg)`
-  return stops(
-    `p${start}-${end}`,
-    start,
-    end,
-    [
-      [-0.4, `opacity: 0; ${filterState(18, -170, 2.6)}; transform: scale(0.8) rotate(-9deg)`],
-      [0.25, `opacity: 0.85; ${filterState(7, -60, 1.9)}; transform: scale(1.06) rotate(4deg)`],
-      [0.9, here],
-    ],
-    [
-      [-0.9, here],
-      [-0.25, `opacity: 0.85; ${filterState(7, 70, 1.9)}; transform: scale(1.07) rotate(-4deg)`],
-      [0.4, `opacity: 0; ${filterState(18, 200, 2.6)}; transform: scale(1.26) rotate(9deg)`],
-    ],
-  )
-}
-
 function drainKeyframes({ start, end }: Run): string {
   const here = 'opacity: 1; transform: rotate(0deg) scale(1)'
   return stops(
@@ -534,33 +527,33 @@ interface Tracks {
   stroke?: string[]
   opacity?: string[]
   transform?: string[]
+  filter?: string[]
 }
 
 const LEAF_PATH = 'M0 0C-14-7-15-27 0-40C15-27 14-7 0 0Z'
 const BENDS = [0.12, 0.65, 1.3, 1.95, 2.55]
 const JOINT = 19.5
 
-function livingPlant(only: number | undefined, showCan: boolean): { markup: string; css: string } {
+interface Timeline {
+  animated: boolean
+  focus: number
+  attrs: (tracks: Tracks, delay?: number) => string
+  rules: string[]
+}
+
+function timeline(only: number | undefined, prefix: string): Timeline {
   const animated = only === undefined
   const focus = only ?? 4
   const count = MOMENTS.length
   const seconds = count * FRAME_SECONDS
   const blend = (1.2 / seconds) * 100
-  const tiles = MOMENTS.map((moment) => moment.plant)
-  const states = tiles.map((tile) =>
-    plantParts({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never),
-  )
-  const series = <T>(pick: (state: PlantParts) => T) => states.map(pick)
-  const decay = (state: PlantParts) => state.wilt / 3
-  const colors = (from: string, to: string) => series((state) => mix(from, to, decay(state)))
   const known = new Map<string, string>()
   const rules: string[] = []
-
   const classFor = (tracks: Tracks): string => {
     const key = JSON.stringify(tracks)
     const existing = known.get(key)
     if (existing) return existing
-    const name = `k${known.size}`
+    const name = `${prefix}${known.size}`
     known.set(key, name)
     const at = (index: number) =>
       (Object.entries(tracks) as Array<[string, string[]]>)
@@ -577,19 +570,155 @@ function livingPlant(only: number | undefined, showCan: boolean): { markup: stri
     rules.push(`@keyframes ${name} { ${frames.join(' ')} 100% { ${at(count - 1)} } }`)
     return name
   }
-
   const attrs = (tracks: Tracks, delay = 0): string => {
-    const list = (Object.entries(tracks) as Array<[string, string[]]>).map(([property, values]) => {
-      const value = values[focus] as string
-      return `${property}="${property === 'transform' ? value.replaceAll('deg', '').replaceAll('px', '') : value}"`
-    })
+    const list = (Object.entries(tracks) as Array<[string, string[]]>)
+      .filter(([property]) => property !== 'filter')
+      .map(([property, values]) => {
+        const value = values[focus] as string
+        return `${property}="${property === 'transform' ? value.replaceAll('deg', '').replaceAll('px', '') : value}"`
+      })
     if (animated) {
       list.push(`class="kf ${classFor(tracks)}"`)
       if (delay) list.push(`style="animation-delay:${delay.toFixed(2)}s"`)
     }
     return list.join(' ')
   }
+  return { animated, focus, attrs, rules }
+}
 
+function backgroundLayers(
+  name: 'plant' | 'pills',
+  tiles: Tile[],
+  attrs: Timeline['attrs'],
+): string {
+  return [...new Set(tiles.map((tile) => JSON.stringify(tile.scene)))]
+    .map((scene) => {
+      const parsed = { progress: 0.5, fill: 0, stink: 0, ...(JSON.parse(scene) as object) } as never
+      const markup = serialize(frame(name, parsed, { animations: false }, [])).replace(
+        '<svg',
+        '<svg width="200" height="200"',
+      )
+      const visible = tiles.map((tile) => (JSON.stringify(tile.scene) === scene ? '1' : '0'))
+      return `<g ${attrs({ opacity: visible })}>${markup}</g>`
+    })
+    .join('')
+}
+
+const PILL_SLOTS = [
+  [52, 72],
+  [84, 72],
+  [116, 72],
+  [148, 72],
+  [52, 124],
+  [84, 124],
+  [116, 124],
+] as const
+const STALE_TOP = '#8f8a84'
+const STALE_BOTTOM = '#aaa497'
+
+function livingPills(only: number | undefined): { markup: string; css: string } {
+  const { animated, attrs, rules } = timeline(only, 'q')
+  const tiles = MOMENTS.map((moment) => moment.pills)
+  const states = tiles.map((tile) =>
+    pillsParts({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never),
+  )
+  const series = <T>(pick: (state: PillsParts) => T) => states.map(pick)
+  const show = (pick: (state: PillsParts) => boolean) =>
+    series((state) => (pick(state) ? '1' : '0'))
+  const slotState = (state: PillsParts, index: number) => state.cells[index] ?? 'full'
+
+  const slots = PILL_SLOTS.map(([x, y], index) => {
+    const delay = index * 0.05
+    const emptied = show((state) => slotState(state, index) === 'taken')
+    const full = show((state) => slotState(state, index) !== 'taken')
+    const top = series((state) => {
+      const value = slotState(state, index)
+      if (value === 'current') return COLORS.sun
+      return value === 'missed' ? STALE_TOP : COLORS.coral
+    })
+    const bottom = series((state) =>
+      slotState(state, index) === 'missed' ? STALE_BOTTOM : COLORS.cream,
+    )
+    const capsule: Tracks = {
+      opacity: full,
+      filter: series((state) => (slotState(state, index) === 'taken' ? 'blur(5px)' : 'blur(0px)')),
+      transform: series((state) => {
+        const value = slotState(state, index)
+        if (value === 'taken') return 'translate(8px, -74px) rotate(46deg) scale(0.45)'
+        return value === 'missed'
+          ? 'translate(0px, 0px) rotate(-14deg) scale(0.84)'
+          : 'translate(0px, 0px) rotate(0deg) scale(1)'
+      }),
+    }
+    const shine = series((state) => (slotState(state, index) === 'missed' ? '0.15' : '0.6'))
+    const halo = series((state) => {
+      if (slotState(state, index) !== 'current') return '0'
+      return state.phase === 'ready' ? '1' : '0.45'
+    })
+    const wells = `<rect x="-13.5" y="-25.5" width="27" height="51" rx="13.5" fill="${COLORS.metal}" ${attrs({ opacity: full }, delay)}/><g ${attrs({ opacity: emptied }, delay + 0.2)}><rect x="-13" y="-25" width="26" height="50" rx="13" fill="#545c78"/><path d="M-8 8a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round"/></g>`
+    const ring = `<g ${attrs({ opacity: halo }, delay)}>${serialize(motion('pulse', '<rect x="-18.5" y="-30.5" width="37" height="61" rx="18.5" fill="none" stroke-width="5" stroke="#ffc94a"/>' as never))}</g>`
+    const body = `<g ${attrs(capsule, delay)}><rect x="-10" y="-22" width="20" height="44" rx="10" ${attrs({ fill: top }, delay)}/><path d="M-10 0H10V12A10 10 0 0 1-10 12Z" ${attrs({ fill: bottom }, delay)}/><rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" ${attrs({ opacity: shine }, delay)}/></g>`
+    return `<g transform="translate(${x} ${y})">${ring}${wells}${body}</g>`
+  }).join('')
+
+  const checks = PILL_SLOTS.map(([x, y], index) => {
+    const on = (state: PillsParts) => state.phase === 'popped' && state.day === index
+    const tracks: Tracks = {
+      opacity: show(on),
+      transform: series((state) => (on(state) ? 'scale(1)' : 'scale(0)')),
+    }
+    return `<g transform="translate(${x} ${y})"><g ${attrs(tracks, 0.45)}><circle r="19" fill="${COLORS.check}"/><path d="M-9 0l6.5 7L9.5-7" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></g></g>`
+  }).join('')
+
+  const faces = [...new Set(states.map((state) => state.mood))]
+    .map(
+      (mood) =>
+        `<g ${attrs({ opacity: show((state) => state.mood === mood) }, 0.2)}>${serialize(face(148, 124, mood, COLORS.fly, 0.82))}</g>`,
+    )
+    .join('')
+  const glassed = (state: PillsParts) => state.phase === 'popped' || state.phase === 'taken-pending'
+  const packMove = series((state) => {
+    const [x, y, size] = glassed(state) ? [86, 90, 0.84] : [100, 100, 1]
+    return `translate(${x}px, ${y}px) rotate(${state.tilt}deg) scale(${size}) translate(-100px, -100px)`
+  })
+  const pack = `<g ${attrs({ transform: packMove })}><rect x="30" y="36" width="140" height="124" rx="16" fill="${COLORS.metalMid}"/><path d="M30 92H170" stroke="${COLORS.metalDark}" stroke-width="2.5" stroke-dasharray="3 7" stroke-linecap="round"/>${slots}${faces}${checks}</g>`
+  const glass = `<g transform="translate(168 146)"><g ${attrs({ opacity: show(glassed), transform: series((state) => (glassed(state) ? 'translate(0px, 0px)' : 'translate(40px, 12px)')) }, 0.3)}><path d="M-17-30H17L13 26Q12.6 31 8 31H-8Q-12.6 31-13 26Z" fill="#cfe8ff" opacity=".35"/><path d="M-15.5-10H15.5L13 26Q12.6 31 8 31H-8Q-12.6 31-13 26Z" fill="${COLORS.water}"/><path d="M-9-2L-7 22" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".55"/></g></g>`
+  const twinkles = (
+    [
+      [26, 30, 1.2, 1],
+      [178, 34, 0.95, 2],
+      [24, 130, 0.85, 3],
+    ] as const
+  )
+    .map(
+      ([x, y, size, delay], index) =>
+        `<g ${attrs({ opacity: show((state) => state.phase === 'popped') }, 0.55 + index * 0.1)}>${serialize(sparkle(x, y, size, delay))}</g>`,
+    )
+    .join('')
+  const left = centerX(0) - SCENE_SIZE / 2
+  const body = [
+    backgroundLayers('pills', tiles, attrs),
+    serialize(shadow(100, 176, 72)),
+    pack,
+    glass,
+    twinkles,
+  ].join('')
+  return {
+    markup: `<svg x="${left}" y="${SCENE_Y}" width="${SCENE_SIZE}" height="${SCENE_SIZE}" viewBox="0 0 200 200" class="${animated ? 'ht-animated' : ''}">${body}</svg>`,
+    css: rules.join('\n'),
+  }
+}
+
+function livingPlant(only: number | undefined, showCan: boolean): { markup: string; css: string } {
+  const { animated, attrs, rules } = timeline(only, 'k')
+  const seconds = MOMENTS.length * FRAME_SECONDS
+  const tiles = MOMENTS.map((moment) => moment.plant)
+  const states = tiles.map((tile) =>
+    plantParts({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never),
+  )
+  const series = <T>(pick: (state: PlantParts) => T) => states.map(pick)
+  const decay = (state: PlantParts) => state.wilt / 3
+  const colors = (from: string, to: string) => series((state) => mix(from, to, decay(state)))
   const show = (pick: (state: PlantParts) => boolean) =>
     series((state) => (pick(state) ? '1' : '0'))
   const arcOf = (state: PlantParts) => (BENDS[state.droop] ?? 0) + state.wilt * 0.12
@@ -713,18 +842,7 @@ function livingPlant(only: number | undefined, showCan: boolean): { markup: stri
   )
   rules.push('@media (prefers-reduced-motion: reduce) { .kf { animation: none } }')
 
-  const uniqueScenes = [...new Set(tiles.map((tile) => JSON.stringify(tile.scene)))]
-  const backgrounds = uniqueScenes
-    .map((scene) => {
-      const parsed = { progress: 0.5, fill: 0, stink: 0, ...(JSON.parse(scene) as object) } as never
-      const markup = serialize(frame('plant', parsed, { animations: false }, [])).replace(
-        '<svg',
-        '<svg width="200" height="200"',
-      )
-      const visible = tiles.map((tile) => (JSON.stringify(tile.scene) === scene ? '1' : '0'))
-      return `<g ${attrs({ opacity: visible })}>${markup}</g>`
-    })
-    .join('')
+  const backgrounds = backgroundLayers('plant', tiles, attrs)
   const left = centerX(2) - SCENE_SIZE / 2
   const body = [
     backgrounds,
@@ -758,7 +876,6 @@ function dayStyles(allRuns: Run[]): string {
   const last = MOMENTS.at(-1) as Moment
   const moon = `0%, ${percent(total - 1) - 1}% { opacity: 0 } ${percent(total - 1)}%, 99% { opacity: 1 } 100% { opacity: 0 }`
   const kinds: Array<[number, string, (run: Run) => string, string]> = [
-    [0, 'p', pillKeyframes, 'ease-in-out'],
     [1, 'd', drainKeyframes, 'ease-in-out'],
   ]
   const sceneRules = kinds.flatMap(([column, kind, frames, easing]) => {
@@ -811,7 +928,10 @@ function dayCycle(only?: number, stillOffset?: number): string {
   const focus = MOMENTS[only ?? 4] as Moment
   const sceneAnimations = sceneStyles.cssText.replace(/\.ht-scene\s*\{[^}]*\}/, '')
   const living = livingPlant(only, preview)
-  const css = animated ? `${sceneAnimations}\n${dayStyles(allRuns)}\n${living.css}` : ''
+  const pills = livingPills(only)
+  const css = animated
+    ? `${sceneAnimations}\n${dayStyles(allRuns)}\n${living.css}\n${pills.css}`
+    : ''
   const moments = MOMENTS.map((moment, index) => ({ moment, index })).filter(
     ({ index }) => animated || index === only,
   )
@@ -824,6 +944,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
       ? whirlMarkup(0, true)
       : ''
   const scenes = COLUMNS.map((_, column) => {
+    if (column === 0) return `<g clip-path="url(#scene0)">${pills.markup}</g>`
     if (column === 2) return `<g clip-path="url(#scene2)">${living.markup}</g>`
     const kind = ['p', 'd', 'g'][column]
     const pivot = origin(column)

@@ -11,19 +11,19 @@
     <ellipse cx="100" cy="176" rx="72" ry="6" fill="#0c0f1e" opacity="0.28" /><g transform="translate(100 100)"><g transform="translate(-100 -100)"><rect x="30" y="36" width="140" height="124" rx="16" fill="#c5cde0" /><path d="M30 92H170" stroke="#8c96b3" stroke-width="2.5" stroke-dasharray="3 7" stroke-linecap="round" /><g data-part="empty-well" data-index="0"><rect x="39" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M44 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="empty-well" data-index="1"><rect x="71" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M76 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="empty-well" data-index="2"><rect x="103" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M108 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="pill" data-index="4"><rect x="38.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(52 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="pill" data-index="5"><rect x="70.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(84 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="pill" data-index="6"><rect x="102.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(116 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="halo"><g transform="translate(148 72)"><g class="ht-a-pulse"><rect x="-18.5" y="-30.5" width="37" height="61" rx="18.5" fill="none" stroke="#ffc857" stroke-width="5" opacity="1" /></g></g></g><rect x="134.5" y="46.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g data-part="next-pill" data-index="3"><g transform="translate(148 72)"><g class="ht-a-throb">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ffc857" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g></g><g data-part="face"><g transform="translate(148 124) scale(0.82)"><circle cx="-11" cy="0" r="5" fill="#2a2d3e" /><circle cx="-9.4" cy="-1.8" r="1.7" fill="#fff" /><circle cx="11" cy="0" r="5" fill="#2a2d3e" /><circle cx="12.6" cy="-1.8" r="1.7" fill="#fff" /><path d="M-3 10q3-3 6 0" fill="none" stroke="#2a2d3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g></g></g></g>
   </svg><text x="116" y="238" text-anchor="middle" fill="#ABA8B8" font-size="15" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">Time for a pill</text><svg x="232" y="16" width="200" height="200"
     class="ht-scene ht-scene-pills"
@@ -38,15 +38,15 @@
     <ellipse cx="100" cy="176" rx="72" ry="6" fill="#0c0f1e" opacity="0.28" /><g transform="translate(86 90) scale(0.84)"><g transform="translate(-100 -100)"><rect x="30" y="36" width="140" height="124" rx="16" fill="#c5cde0" /><path d="M30 92H170" stroke="#8c96b3" stroke-width="2.5" stroke-dasharray="3 7" stroke-linecap="round" /><g data-part="empty-well" data-index="0"><rect x="39" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M44 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="empty-well" data-index="1"><rect x="71" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M76 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="empty-well" data-index="2"><rect x="103" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M108 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="pill" data-index="4"><rect x="38.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(52 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="pill" data-index="5"><rect x="70.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(84 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="pill" data-index="6"><rect x="102.5" y="98.5" width="27" height="51" rx="13.5" fill="#e8ecf5" /><g transform="translate(116 124)">
     <rect x="-10" y="-22" width="20" height="44" rx="10" fill="#ff7a6b" />
     <path d="M-10 0H10V12A10 10 0 0 1-10 12Z" fill="#f6f1e4" />
-    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity=".6" />
+    <rect x="-5.5" y="-16" width="4" height="13" rx="2" fill="#fff" opacity="0.6" />
   </g></g><g data-part="empty-well" data-index="3"><rect x="135" y="47" width="26" height="50" rx="13" fill="#545c78" /><path d="M140 80a8 11 0 0 0 16 0" fill="none" stroke="#7d86a3" stroke-width="3.4" stroke-linecap="round" /></g><g data-part="face"><g transform="translate(148 124) scale(0.82)"><path d="M-15 1q4-6 8 0" fill="none" stroke="#2a2d3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /><path d="M7 1q4-6 8 0" fill="none" stroke="#2a2d3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /><path d="M-5 7q5 6 10 0" fill="none" stroke="#2a2d3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g></g><g data-part="check"><g transform="translate(148 72)"><circle r="19" fill="#4fd18b" /><path d="M-9 0l6.5 7L9.5-7" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" /></g></g></g></g><g data-part="glass"><g transform="translate(168 146)"><path d="M-17-30H17L13 26Q12.6 31 8 31H-8Q-12.6 31-13 26Z" fill="#cfe8ff" opacity=".35" /><path d="M-15.5-10H15.5L13 26Q12.6 31 8 31H-8Q-12.6 31-13 26Z" fill="#6cc8f5" /><path d="M-9-2L-7 22" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".55" /></g></g><g data-part="sparkle"><g transform="translate(26 30) scale(1.2)"><g class="ht-a-twinkle ht-d1"><path d="M0-10C1.2-3 3-1.2 10 0C3 1.2 1.2 3 0 10C-1.2 3-3 1.2-10 0C-3-1.2-1.2-3 0-10Z" fill="#fff3c4" /></g></g></g><g data-part="sparkle"><g transform="translate(178 34) scale(0.95)"><g class="ht-a-twinkle ht-d2"><path d="M0-10C1.2-3 3-1.2 10 0C3 1.2 1.2 3 0 10C-1.2 3-3 1.2-10 0C-3-1.2-1.2-3 0-10Z" fill="#fff3c4" /></g></g></g><g data-part="sparkle"><g transform="translate(24 130) scale(0.85)"><g class="ht-a-twinkle ht-d3"><path d="M0-10C1.2-3 3-1.2 10 0C3 1.2 1.2 3 0 10C-1.2 3-3 1.2-10 0C-3-1.2-1.2-3 0-10Z" fill="#fff3c4" /></g></g></g>
   </svg><text x="332" y="238" text-anchor="middle" fill="#ABA8B8" font-size="15" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">Taken</text><svg x="448" y="16" width="200" height="200"
     class="ht-scene ht-scene-plant"

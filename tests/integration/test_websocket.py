@@ -184,6 +184,36 @@ async def test_advance_skip_undo(client: Any, manager: HousetideManager) -> None
     ]
 
 
+async def test_pills_view_reports_slots(client: Any, manager: HousetideManager) -> None:
+    task = manager.async_create_task(daily())
+    other = manager.async_create_task(chain())
+
+    async def views() -> dict[str, dict[str, Any]]:
+        result = (await call(client, "state"))["result"]
+        return {view["task_id"]: view["scene"] for view in result["views"]}
+
+    scenes = await views()
+    assert scenes[task.id]["slots"] == ["full", "full", "full", "current", "full", "full", "full"]
+    assert "slots" not in scenes[other.id]
+
+    done = await call(client, "advance", task_id=task.id)
+    assert done["result"]["scene"]["slots"][3] == "taken"
+    assert manager.runtimes[task.id].pack is not None
+
+    undone = await call(client, "undo", task_id=task.id)
+    assert undone["result"]["scene"]["slots"][3] == "current"
+    assert manager.runtimes[task.id].pack is None
+
+    skipped = await call(client, "skip", task_id=task.id)
+    assert skipped["result"]["scene"]["slots"][:5] == [
+        "full",
+        "full",
+        "full",
+        "missed",
+        "current",
+    ]
+
+
 async def test_history_paging(
     hass: HomeAssistant, client: Any, manager: HousetideManager, freezer: FrozenDateTimeFactory
 ) -> None:
