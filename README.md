@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-7F77DD.svg)](https://github.com/kriakiku/housetide/blob/main/LICENSE)
 
-<img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/laundry.svg" alt="Five laundry scenes: a growing pile, a smelly overdue pile, a running machine, wet clothes waiting, and clean laundry" width="820">
+<img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/day.svg" alt="A day in Housetide from dawn to night: laundry piles up, the washer starts itself, the laundry gets hung up and everything ends up clean" width="860">
 
 </div>
 
@@ -22,6 +22,10 @@ Ignore a task and the scene lets you know about it.
 - **Living scenes.** Laundry piles up, starts to smell, draws flies, shakes during the wash and sparkles when it's done. Pills and plants have their own, and everything else gets a tide that rises.
 - **Its own sidebar page.** Today's tasks, a full editor with templates, and a history with a day grid, streaks and an on-time rate.
 - **A dashboard card**, sensors for each task, a `todo` list, services and events for your own automations.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/laundry.svg" alt="Five laundry scenes: a growing pile, a smelly overdue pile, a running machine, wet clothes waiting, and clean laundry" width="820">
+</p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/others.svg" alt="Pill, plant and generic scenes" width="820">
