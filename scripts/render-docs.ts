@@ -1186,12 +1186,13 @@ function layoutsImage(): string {
     .join('')
   const rowX = 612
   const rowW = 308
+  const rowFloor = (168 * 76) / 200
   const rows = tasks
     .map((tile, index) => {
       const y = 66 + index * 84
       const id = `layout-row-${index}`
       const { wall, floor } = surface(tile)
-      return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="65.4" fill="${wall}"/><rect x="${rowX}" y="${y + 65.4}" width="${rowW}" height="10.6" fill="${floor}"/>${layoutScene(tile, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
+      return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="${rowFloor}" fill="${wall}"/><rect x="${rowX}" y="${y + rowFloor}" width="${rowW}" height="${76 - rowFloor}" fill="${floor}"/>${layoutScene(tile, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
     })
     .join('')
   const width = 960
