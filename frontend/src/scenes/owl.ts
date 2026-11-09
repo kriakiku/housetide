@@ -27,6 +27,7 @@ export type OwlView = 'asleep' | 'watching' | 'due' | 'supervising' | 'waiting' 
 export type OwlPupils = 'soft' | 'round' | 'dots' | 'mismatched' | 'half-spiral' | 'spiral'
 
 export interface OwlParts {
+  sly: boolean
   view: OwlView
   glow: number
   gaze: number
@@ -72,6 +73,7 @@ const SWEAT_BY_RAGE = [0, 0, 0, 0, 0, 1, 2, 5] as const
 const RUFFLE_BY_RAGE = [0, 0, 0, 0, 1, 2, 3, 3] as const
 
 const CALM = {
+  sly: false,
   glow: 0,
   gaze: 0,
   lid: 0.3,
@@ -130,6 +132,7 @@ export function owlParts(scene: SceneView): OwlParts {
     gaze: 4,
     lid: 0,
     rage,
+    sly: rage >= 6,
     twitch: rage >= 1,
     veins: reached(rage, [2, 5]),
     browAngle: BROWS[rage] ?? 0,
@@ -456,6 +459,33 @@ function corners(left: number, right: number, y: number, color: string): Art {
   )
 }
 
+const SLY_EYE = 'M-14 6Q0-2 14-9Q12 6-2 9Q-9 10-14 6Z'
+
+function slyAlmond(x: number, flip: boolean): Art {
+  return at(
+    x,
+    EYE_Y,
+    svg`<g transform=${flip ? 'scale(-1 1)' : 'scale(1 1)'}><path d=${SLY_EYE} fill=${C.cream} stroke=${C.coral} stroke-width="5" stroke-linejoin="round" /></g>`,
+  )
+}
+
+function slyPupil(x: number): Art {
+  return at(
+    x,
+    EYE_Y + 1,
+    svg`<circle r="5" fill=${INK} /><circle cx="1.8" cy="-1.8" r="1.5" fill="#fff" />`,
+  )
+}
+
+function slyEyes(): Art {
+  return [
+    slyAlmond(LEFT_EYE, true),
+    slyAlmond(RIGHT_EYE, false),
+    slyPupil(LEFT_EYE + 4),
+    slyPupil(RIGHT_EYE + 6),
+  ]
+}
+
 function faceArt(parts: OwlParts, colors: FaceColors): Art {
   const closed = parts.view === 'asleep' || parts.view === 'bliss'
   const looks = eyeLooks(parts)
@@ -463,17 +493,19 @@ function faceArt(parts: OwlParts, colors: FaceColors): Art {
     svg`<path d=${MASK} fill=${mix(colors.mask, C.spark, parts.glow * 0.08)} />`,
     svg`<ellipse cx="76" cy="93" rx="6.5" ry="4" fill=${C.pink} opacity=${parts.view === 'bliss' ? 0.8 : 0.45} />`,
     svg`<ellipse cx="124" cy="93" rx="6.5" ry="4" fill=${C.pink} opacity=${parts.view === 'bliss' ? 0.8 : 0.45} />`,
-    closed
-      ? part('eyes', closedEyes(parts.view, colors.mouth))
-      : part('eyes', [
-          at(LEFT_EYE, EYE_Y, eye(looks[0], parts.glow, colors.lid, colors.mask, false), 6),
-          at(
-            RIGHT_EYE,
-            EYE_Y,
-            eye(looks[1], parts.glow, colors.lid, colors.mask, parts.twitch),
-            -6,
-          ),
-        ]),
+    parts.sly
+      ? part('eyes', slyEyes())
+      : closed
+        ? part('eyes', closedEyes(parts.view, colors.mouth))
+        : part('eyes', [
+            at(LEFT_EYE, EYE_Y, eye(looks[0], parts.glow, colors.lid, colors.mask, false), 6),
+            at(
+              RIGHT_EYE,
+              EYE_Y,
+              eye(looks[1], parts.glow, colors.lid, colors.mask, parts.twitch),
+              -6,
+            ),
+          ]),
     brows(parts, colors.brow),
     when(parts.twitch, () => part('twitch', stroke('M129 66l4-3M131 75h5M129 84l4 3', INK, 2.2))),
   ]
