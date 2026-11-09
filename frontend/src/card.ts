@@ -310,7 +310,7 @@ export class HousetideCard extends LitElement {
     this.config = { ...config }
   }
 
-  private layout(): CardLayout {
+  private cardLayout(): CardLayout {
     return this.config.layout ?? 'list'
   }
 
@@ -327,7 +327,7 @@ export class HousetideCard extends LitElement {
 
   private bodySize(count: number): number {
     const columns = this.columnCount()
-    switch (this.layout()) {
+    switch (this.cardLayout()) {
       case 'list':
         return count * 2
       case 'scenes':
@@ -342,7 +342,7 @@ export class HousetideCard extends LitElement {
   }
 
   getGridOptions(): { columns: number; rows: 'auto'; min_columns: number; min_rows: number } {
-    const layout = this.layout()
+    const layout = this.cardLayout()
     const [least, min_rows] = MIN_GRID[layout]
     const cells = layout === 'picture' || layout === 'bubbles' ? this.columnCount() : undefined
     const min_columns = cells ? Math.max(least, Math.ceil(cells * GRID_COLUMNS_PER_CELL)) : least
@@ -383,7 +383,7 @@ export class HousetideCard extends LitElement {
         <span>${i18n.t('card_error_hint')}</span>
       </div>`
     }
-    const layout = this.layout()
+    const layout = this.cardLayout()
     if (!state) {
       return html`<div
         class=${this.gridClass(layout)}
@@ -434,7 +434,7 @@ export class HousetideCard extends LitElement {
     const { hass } = this
     if (!hass) return nothing
     const i18n = localeOf(hass)
-    const layout = this.layout()
+    const layout = this.cardLayout()
     const attention = this.live.state ? this.views().filter((v) => needsAttention(v)).length : 0
     const offline = isOffline(hass)
       ? html`<span class="offline" role="status">${icon('alert')}${i18n.t('disconnected')}</span>`

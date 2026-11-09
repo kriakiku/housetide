@@ -128,6 +128,22 @@ describe('icons', () => {
   })
 })
 
+describe('properties Home Assistant sets on a card', () => {
+  test('a layout property from the dashboard does not break the card', async () => {
+    const { card } = await withState(payload([view('due')]), {
+      show: 'all',
+      layout: 'picture',
+      columns: 3,
+    })
+    Object.assign(card, { layout: 'grid', preview: false })
+    expect(card.getGridOptions().columns).toBe(12)
+    expect(card.getCardSize()).toBeGreaterThan(0)
+    card.requestUpdate()
+    await card.updateComplete
+    expect($(card, '.picture')).toBeTruthy()
+  })
+})
+
 describe('columns', () => {
   test('a fixed count sets the tile grid', async () => {
     const { card } = await withState(payload([view('due')]), {
