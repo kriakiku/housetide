@@ -22,9 +22,9 @@ import {
   stenchLines,
   tintOf,
   when,
+  bubble,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
-import { bubble } from './laundry.ts'
 
 export type PoolView = 'float' | 'swim' | 'dry'
 export type PoolTone = 'night' | 'stale' | 'fresh' | 'wet' | 'sparkle'

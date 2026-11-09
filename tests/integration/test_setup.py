@@ -1,6 +1,9 @@
 import json
+import re
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, DATA_PANELS
 from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
@@ -14,7 +17,8 @@ from custom_components.housetide.manager import HousetideManager, get_manager
 from .conftest import daily
 
 COMPONENT = Path(__file__).resolve().parents[2] / "custom_components" / "housetide"
-MODULE_URL = f"{BUNDLE_URL}?v=0.2.0"
+BUNDLE_HASH = sha256((COMPONENT / "frontend" / "housetide.js").read_bytes()).hexdigest()[:16]
+MODULE_URL = f"{BUNDLE_URL}?v={BUNDLE_HASH}"
 
 
 async def test_config_flow_creates_one_entry(hass: HomeAssistant) -> None:
@@ -43,6 +47,38 @@ async def test_setup_registers_panel_and_bundle(
     response = await client.get(MODULE_URL)
     assert response.status == 200
     assert await response.text() == (COMPONENT / "frontend" / "housetide.js").read_text()
+
+
+async def test_every_chunk_is_served_relative_to_the_module(
+    hass: HomeAssistant, config_entry: MockConfigEntry, hass_client: Any
+) -> None:
+    client = await hass_client()
+    frontend_dir = COMPONENT / "frontend"
+    seen: set[str] = set()
+    pending = [MODULE_URL]
+    while pending:
+        url = pending.pop()
+        response = await client.get(url)
+        assert response.status == 200, url
+        body = await response.text()
+        assert body == (frontend_dir / url.split("?")[0].rsplit("/", 1)[1]).read_text()
+        for target in re.findall(r"""(?:from|import\()\s*"(\./[\w.-]+\.js)\"""", body):
+            resolved = urljoin(url, target)
+            assert "?" not in resolved
+            if resolved not in seen:
+                seen.add(resolved)
+                pending.append(resolved)
+    assert len(seen) > 2
+    on_disk = {f"/housetide_static/{path.name}" for path in frontend_dir.iterdir()}
+    assert seen | {BUNDLE_URL} == on_disk
+
+
+async def test_a_missing_chunk_is_not_found(
+    hass: HomeAssistant, config_entry: MockConfigEntry, hass_client: Any
+) -> None:
+    client = await hass_client()
+    assert (await client.get("/housetide_static/laundry-00000000.js")).status == 404
+    assert (await client.get("/housetide_static/")).status in {403, 404}
 
 
 async def test_unload_removes_everything(

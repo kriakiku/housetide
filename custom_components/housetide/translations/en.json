@@ -27,6 +27,15 @@
           "done": "Done",
           "disabled": "Disabled"
         }
+      },
+      "pomodoro": {
+        "name": "Pomodoro",
+        "state": {
+          "idle": "Idle",
+          "focus": "Focus",
+          "short_break": "Short break",
+          "long_break": "Long break"
+        }
       }
     }
   },
@@ -42,6 +51,9 @@
     },
     "todo_read_only": {
       "message": "Housetide items can only be checked off. Edit the task in the Housetide panel."
+    },
+    "pomodoro_not_allowed": {
+      "message": "The Pomodoro timer cannot do that right now."
     }
   },
   "services": {
@@ -74,6 +86,26 @@
           "description": "The id of the task, shown in the attributes of its sensor."
         }
       }
+    },
+    "pomodoro_start": {
+      "name": "Start Pomodoro",
+      "description": "Starts the next phase of the Pomodoro timer."
+    },
+    "pomodoro_pause": {
+      "name": "Pause Pomodoro",
+      "description": "Pauses the current phase of the Pomodoro timer."
+    },
+    "pomodoro_resume": {
+      "name": "Resume Pomodoro",
+      "description": "Resumes the paused phase of the Pomodoro timer."
+    },
+    "pomodoro_skip": {
+      "name": "Skip Pomodoro phase",
+      "description": "Ends the current phase of the Pomodoro timer without counting a round."
+    },
+    "pomodoro_stop": {
+      "name": "Stop Pomodoro",
+      "description": "Stops the Pomodoro timer."
     }
   }
 }

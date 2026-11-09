@@ -4,6 +4,9 @@ import { join } from 'node:path'
 import { PICKER_GROUPS } from '../frontend/src/panel/model.ts'
 import {
   COLORS,
+  bubble,
+  cloud,
+  ding,
   drop,
   face,
   mix,
@@ -16,13 +19,10 @@ import {
   fly,
   tileFor,
 } from '../frontend/src/scenes/common.ts'
-import { renderScene } from '../frontend/src/scenes/index.ts'
+import { preloadAllScenes, renderScene } from '../frontend/src/scenes/index.ts'
 import {
   basketShell,
   BASKET_FACE,
-  bubble,
-  cloud,
-  ding,
   DRY_SPARKLES,
   drips,
   drumLoad,
@@ -1159,20 +1159,28 @@ const LOOP_STATES = [
   { state: 'running', fill: 1, stink: 0, slots: THIS_MORNING },
   { state: 'clean', fill: 0, stink: 0, slots: TAKEN_TODAY },
 ] as const
+const TOMATO_LOOP = [
+  { state: 'running', progress: 7 / 12 },
+  { state: 'waiting', progress: 7 / 12 },
+  { state: 'accumulating', progress: 4 / 12 },
+  { state: 'clean', progress: 1 },
+] as const
+
+function loopScene(name: SceneName, index: number): object {
+  if (name === 'tomato') {
+    const { state, progress } = TOMATO_LOOP[index % TOMATO_LOOP.length]!
+    return { name, state, progress, fill: progress, stink: 0 }
+  }
+  const { state, fill, stink, slots } = LOOP_STATES[index % LOOP_STATES.length]!
+  return { name, state, fill, stink, progress: 0.5, ...(name === 'pills' ? { slots } : {}) }
+}
 
 function sceneLoop(name: SceneName): string {
   const total = LOOP_STATES.length * LOOP_FRAME
   const pct = (seconds: number) => ((seconds / total) * 100).toFixed(2)
   const last = LOOP_STATES.length - 1
-  const layers = LOOP_STATES.map(({ state, fill, stink, slots }, index) => {
-    const scene = {
-      name,
-      state,
-      fill,
-      stink,
-      progress: 0.5,
-      ...(name === 'pills' ? { slots } : {}),
-    } as never
+  const layers = LOOP_STATES.map((_, index) => {
+    const scene = loopScene(name, index) as never
     const markup = serialize(renderScene(scene, { animations: true }))
       .replaceAll(/<!--.*?-->/g, '')
       .replace('<svg', '<svg width="200" height="200"')
@@ -1560,6 +1568,7 @@ function owlImage(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="One owl over one day, from calm to a full butter knife">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(GAP, 46, 'any time today')}${heading(GAP + 2 * step, 46, 'the last six hours')}${stages}</svg>\n`
 }
 
+await preloadAllScenes()
 mkdirSync(OUT, { recursive: true })
 gallery('laundry', [
   { label: 'Piling up', name: 'laundry', state: 'accumulating', fill: 0.35 },
@@ -1570,7 +1579,7 @@ gallery('laundry', [
 ])
 writeFileSync(join(OUT, 'day.svg'), dayCycle())
 mkdirSync(join(OUT, 'scenes'), { recursive: true })
-for (const name of PICKER_GROUPS.flatMap((group) => group.scenes)) {
+for (const name of [...PICKER_GROUPS.flatMap((group) => group.scenes), 'tomato'] as const) {
   writeFileSync(join(OUT, 'scenes', `${name}.svg`), sceneLoop(name))
 }
 writeFileSync(join(OUT, 'layouts.svg'), layoutsImage())

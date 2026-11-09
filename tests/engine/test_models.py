@@ -256,7 +256,13 @@ def test_history_event_round_trip_and_validation() -> None:
 def test_settings() -> None:
     assert Settings.from_dict({}).history_retention_days == 365
     assert Settings.from_dict({"history_retention_days": 30}).to_dict() == {
-        "history_retention_days": 30
+        "history_retention_days": 30,
+        "focus_minutes": 25,
+        "short_break_minutes": 5,
+        "long_break_minutes": 15,
+        "rounds_until_long_break": 4,
+        "auto_start_breaks": True,
+        "auto_start_focus": False,
     }
     with pytest.raises(ValidationError, match="at least 1"):
         Settings.from_dict({"history_retention_days": 0})

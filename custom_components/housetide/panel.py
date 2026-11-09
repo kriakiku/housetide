@@ -1,24 +1,36 @@
+from hashlib import sha256
 from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.loader import async_get_integration
 from homeassistant.util.hass_dict import HassKey
 
-from .const import BUNDLE_URL, DOMAIN, PANEL_ELEMENT, PANEL_ICON, PANEL_TITLE, PANEL_URL_PATH
+from .const import (
+    BUNDLE_URL,
+    DOMAIN,
+    PANEL_ELEMENT,
+    PANEL_ICON,
+    PANEL_TITLE,
+    PANEL_URL_PATH,
+    STATIC_URL,
+)
 
-_BUNDLE_PATH = Path(__file__).parent / "frontend" / "housetide.js"
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
 _DATA_STATIC: HassKey[bool] = HassKey(f"{DOMAIN}_static")
 _DATA_MODULE_URL: HassKey[str] = HassKey(f"{DOMAIN}_module_url")
 
 
+def _bundle_version() -> str:
+    return sha256((_FRONTEND_DIR / "housetide.js").read_bytes()).hexdigest()[:16]
+
+
 async def async_register(hass: HomeAssistant) -> None:
-    integration = await async_get_integration(hass, DOMAIN)
-    module_url = f"{BUNDLE_URL}?v={integration.version}"
+    version = await hass.async_add_executor_job(_bundle_version)
+    module_url = f"{BUNDLE_URL}?v={version}"
     if _DATA_STATIC not in hass.data:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(BUNDLE_URL, str(_BUNDLE_PATH), False)]
+            [StaticPathConfig(STATIC_URL, str(_FRONTEND_DIR), False)]
         )
         hass.data[_DATA_STATIC] = True
     frontend.add_extra_js_url(hass, module_url)

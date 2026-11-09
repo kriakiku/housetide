@@ -11,7 +11,7 @@
     "lint": "oxlint --type-aware",
     "typecheck": "tsc",
     "test": "bun test frontend",
-    "build": "bun build frontend/src/housetide.ts --outfile custom_components/housetide/frontend/housetide.js --format esm --target browser --minify",
+    "build": "bun run scripts/build.ts",
     "docs:images": "bun run scripts/render-docs.ts"
   },
   "dependencies": {

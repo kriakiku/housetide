@@ -7,7 +7,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, SIGNAL_UPDATED, STATUSES
+from .const import DOMAIN, POMODORO_PHASES, SIGNAL_UPDATED, STATUSES
 from .manager import HousetideConfigEntry, HousetideManager, view_fingerprint
 
 
@@ -23,6 +23,10 @@ def _unique_id(task_id: str) -> str:
     return f"{DOMAIN}_{task_id}"
 
 
+def _pomodoro_unique_id(entry: HousetideConfigEntry) -> str:
+    return f"{entry.entry_id}_pomodoro"
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: HousetideConfigEntry,
@@ -30,7 +34,8 @@ async def async_setup_entry(
 ) -> None:
     manager = entry.runtime_data
     registry = er.async_get(hass)
-    valid = {_unique_id(task_id) for task_id in manager.tasks}
+    pomodoro_id = _pomodoro_unique_id(entry)
+    valid = {_unique_id(task_id) for task_id in manager.tasks} | {pomodoro_id}
     for registered in er.async_entries_for_config_entry(registry, entry.entry_id):
         if registered.domain == "sensor" and registered.unique_id not in valid:
             registry.async_remove(registered.entity_id)
@@ -44,6 +49,7 @@ async def async_setup_entry(
         if fresh:
             async_add_entities(HousetideTaskSensor(entry, manager, task_id) for task_id in fresh)
 
+    async_add_entities([HousetidePomodoroSensor(entry, manager)])
     sync()
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_UPDATED, sync))
 
@@ -93,4 +99,40 @@ class HousetideTaskSensor(SensorEntity):
             return
         before = self._printed
         if self._refresh() != before:
+            self.async_write_ha_state()
+
+
+class HousetidePomodoroSensor(SensorEntity):
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = POMODORO_PHASES
+    _attr_translation_key = "pomodoro"
+    _attr_icon = "mdi:timer-outline"
+
+    def __init__(self, entry: HousetideConfigEntry, manager: HousetideManager) -> None:
+        self._manager = manager
+        self._attr_unique_id = _pomodoro_unique_id(entry)
+        self._attr_device_info = device_info(entry)
+        self._refresh()
+
+    def _refresh(self) -> bool:
+        state = self._manager.pomodoro.to_dict()
+        attributes = {key: state[key] for key in ("ends_at", "round", "rounds_today")}
+        changed = (
+            state["phase"] != self._attr_native_value
+            or attributes != self._attr_extra_state_attributes
+        )
+        self._attr_native_value = state["phase"]
+        self._attr_extra_state_attributes = attributes
+        return changed
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_UPDATED, self._handle_update)
+        )
+
+    @callback
+    def _handle_update(self) -> None:
+        if self._refresh():
             self.async_write_ha_state()

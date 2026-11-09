@@ -7,7 +7,7 @@ import { fetchTemplates, updateSettings } from '../api.ts'
 import type { I18n } from '../i18n.ts'
 import { renderScene } from '../scenes/index.ts'
 import { controls, sceneStyles, tokens } from '../styles.ts'
-import type { HomeAssistant, StatePayload, Task, TaskDraft, TaskView } from '../types.ts'
+import type { HomeAssistant, Settings, StatePayload, Task, TaskDraft, TaskView } from '../types.ts'
 import { errorMessage, hassChanged, isHass, localeOf } from './live.ts'
 import {
   localizeTemplate,
@@ -21,6 +21,35 @@ import { icon, iconStyles } from './tile.ts'
 type Templates = Record<string, TaskDraft>
 
 const MAX_RETENTION_DAYS = 36_500
+const MAX_POMODORO_MINUTES = 1440
+const MAX_POMODORO_ROUNDS = 12
+
+type PomodoroNumber =
+  | 'focus_minutes'
+  | 'short_break_minutes'
+  | 'long_break_minutes'
+  | 'rounds_until_long_break'
+type PomodoroSwitch = 'auto_start_breaks' | 'auto_start_focus'
+type PomodoroDraft = Partial<Record<PomodoroNumber, string> & Record<PomodoroSwitch, boolean>>
+
+const POMODORO_NUMBERS = [
+  { key: 'focus_minutes', label: 'field_pomodoro_focus', max: MAX_POMODORO_MINUTES },
+  { key: 'short_break_minutes', label: 'field_pomodoro_short', max: MAX_POMODORO_MINUTES },
+  { key: 'long_break_minutes', label: 'field_pomodoro_long', max: MAX_POMODORO_MINUTES },
+  { key: 'rounds_until_long_break', label: 'field_pomodoro_rounds', max: MAX_POMODORO_ROUNDS },
+] as const
+const POMODORO_SWITCHES = [
+  { key: 'auto_start_breaks', label: 'field_pomodoro_auto_breaks' },
+  { key: 'auto_start_focus', label: 'field_pomodoro_auto_focus' },
+] as const
+
+function parseCount(value: string): number {
+  return /^\d+$/.test(value.trim()) ? Number(value.trim()) : Number.NaN
+}
+
+function countInvalid(value: number, max: number): boolean {
+  return !Number.isInteger(value) || value < 1 || value > max
+}
 
 export class HousetideTasks extends LitElement {
   static override properties: PropertyDeclarations = {
@@ -34,6 +63,7 @@ export class HousetideTasks extends LitElement {
     retention: { state: true },
     settingsError: { state: true },
     settingsBusy: { state: true },
+    pomodoroDraft: { state: true },
   }
 
   static override styles = [
@@ -219,6 +249,31 @@ export class HousetideTasks extends LitElement {
         flex: 1 1 200px;
       }
 
+      .settings + .settings {
+        margin-top: 12px;
+      }
+
+      .settings .group {
+        flex: 1 0 100%;
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .settings .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        color: var(--ht-fg);
+      }
+
+      .check input {
+        width: 24px;
+        height: 24px;
+        accent-color: var(--ht-accent);
+      }
+
       .editor-title {
         display: flex;
         align-items: center;
@@ -240,6 +295,7 @@ export class HousetideTasks extends LitElement {
   declare retention: string | null
   declare settingsError: string | null
   declare settingsBusy: boolean
+  declare pomodoroDraft: PomodoroDraft
 
   private opening = 0
 
@@ -254,6 +310,7 @@ export class HousetideTasks extends LitElement {
     this.retention = null
     this.settingsError = null
     this.settingsBusy = false
+    this.pomodoroDraft = {}
   }
 
   protected override shouldUpdate(changed: PropertyValues): boolean {
@@ -299,17 +356,29 @@ export class HousetideTasks extends LitElement {
     this.editing = { source: task, title: task.title }
   }
 
-  private async saveSettings(days: number): Promise<void> {
+  private async writeSettings(settings: Partial<Settings>, done: () => void): Promise<void> {
     this.settingsBusy = true
     this.settingsError = null
     try {
-      await updateSettings(this.hass, { history_retention_days: days })
-      this.retention = null
+      await updateSettings(this.hass, settings)
+      done()
     } catch (error) {
       this.settingsError = errorMessage(error)
     } finally {
       this.settingsBusy = false
     }
+  }
+
+  private async saveSettings(days: number): Promise<void> {
+    await this.writeSettings({ history_retention_days: days }, () => {
+      this.retention = null
+    })
+  }
+
+  private async savePomodoro(settings: Partial<Settings>): Promise<void> {
+    await this.writeSettings(settings, () => {
+      this.pomodoroDraft = {}
+    })
   }
 
   private renderTemplates(i18n: I18n): TemplateResult | typeof nothing {
@@ -508,7 +577,97 @@ export class HousetideTasks extends LitElement {
               >`
         }
       </div>
+      ${this.renderPomodoroSettings(state, i18n)}
     </section>`
+  }
+
+  private renderPomodoroSettings(state: StatePayload, i18n: I18n): TemplateResult {
+    const { settings } = state
+    const draft = this.pomodoroDraft
+    const numbers = POMODORO_NUMBERS.map(({ key, label, max }) => {
+      const text = draft[key] ?? String(settings[key])
+      const parsed = parseCount(text)
+      return { key, label, max, text, parsed, invalid: countInvalid(parsed, max) }
+    })
+    const switches = POMODORO_SWITCHES.map(({ key, label }) => ({
+      key,
+      label,
+      checked: draft[key] ?? settings[key],
+    }))
+    const invalid = numbers.some((field) => field.invalid)
+    const dirty =
+      numbers.some((field) => field.parsed !== settings[field.key]) ||
+      switches.some((field) => field.checked !== settings[field.key])
+    const save = (): void => {
+      const values: Partial<Settings> = {}
+      for (const field of numbers) values[field.key] = field.parsed
+      for (const field of switches) values[field.key] = field.checked
+      void this.savePomodoro(values)
+    }
+    return html`<div class="settings" data-part="pomodoro-settings">
+      <div class="group" role="heading" aria-level="3">${i18n.t('settings_pomodoro')}</div>
+      ${numbers.map(
+        (field) =>
+          html`<label class="ht-label">
+            ${i18n.t(field.label)}
+            <input
+              class="ht-input"
+              data-field=${field.key}
+              inputmode="numeric"
+              .value=${field.text}
+              ?disabled=${!this.isAdmin}
+              aria-invalid=${field.invalid ? 'true' : 'false'}
+              @input=${(event: Event): void => {
+                const { target } = event
+                if (target instanceof HTMLInputElement) {
+                  this.pomodoroDraft = { ...this.pomodoroDraft, [field.key]: target.value }
+                }
+              }}
+            />
+            ${
+              field.invalid
+                ? html`<span class="err" role="alert"
+                    >${
+                      field.parsed > field.max
+                        ? i18n.t('error_max', { max: field.max })
+                        : i18n.t('error_min', { min: 1 })
+                    }</span
+                  >`
+                : nothing
+            }
+          </label>`,
+      )}
+      ${switches.map(
+        (field) =>
+          html`<label class="check">
+            <input
+              type="checkbox"
+              data-field=${field.key}
+              .checked=${field.checked}
+              ?disabled=${!this.isAdmin}
+              @change=${(event: Event): void => {
+                const { target } = event
+                if (target instanceof HTMLInputElement) {
+                  this.pomodoroDraft = { ...this.pomodoroDraft, [field.key]: target.checked }
+                }
+              }}
+            />
+            ${i18n.t(field.label)}
+          </label>`,
+      )}
+      ${
+        this.isAdmin
+          ? html`<button
+              class="ht-btn ht-btn-primary"
+              data-action="save-pomodoro"
+              ?disabled=${invalid || !dirty || this.settingsBusy}
+              @click=${save}
+            >
+              ${i18n.t('action_save')}
+            </button>`
+          : nothing
+      }
+    </div>`
   }
 
   override render(): TemplateResult | typeof nothing {

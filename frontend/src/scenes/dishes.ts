@@ -20,9 +20,10 @@ import {
   sparkle,
   stenchLines,
   when,
+  bubble,
+  cloud,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
-import { bubble, cloud } from './laundry.ts'
 
 export type DishesView = 'sink' | 'washing' | 'rack'
 

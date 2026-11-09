@@ -26,6 +26,9 @@ import {
   tintOf,
   variantOf,
   when,
+  bubble,
+  cloud,
+  ding,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
 
@@ -358,21 +361,6 @@ function machineFrame(art: Art): Art {
   return at(100, 181, at(-100, -181, art), 0, 0.84)
 }
 
-export function bubble(x: number, y: number, r: number, delay: number): Art {
-  return part(
-    'bubble',
-    at(
-      x,
-      y,
-      motion(
-        'rise',
-        svg`<circle r=${r} fill=${C.water} opacity=".22" /><circle r=${r} fill="none" stroke="#d6f2ff" stroke-width="2.4" /><circle cx=${-r * 0.35} cy=${-r * 0.35} r=${r * 0.22} fill="#fff" />`,
-        delay,
-      ),
-    ),
-  )
-}
-
 export function drumLoad(colors: LaundryColors = COLORED): Art {
   const { coral, sun, mint } = colors
   const clothes = edged(colors, [
@@ -450,23 +438,6 @@ function washing(parts: LaundryParts, colors: LaundryColors, ring: string): Art 
   ]
 }
 
-export function cloud(x: number, y: number, s: number, delay: number): Art {
-  return part(
-    'cloud',
-    at(
-      x,
-      y,
-      motion(
-        'drift',
-        svg`<g fill=${C.musty} opacity=".9"><circle cx="-16" cy="4" r="13" /><circle cx="3" cy="-5" r="17" /><circle cx="20" cy="5" r="12" /><rect x="-27" y="3" width="56" height="14" rx="7" /></g><path d="M-14 6q3 3 6 0M4 6q3 3 6 0" fill="none" stroke=${C.mustyDark} stroke-width="3" stroke-linecap="round" />`,
-        delay,
-      ),
-      0,
-      s,
-    ),
-  )
-}
-
 export function wetLoad(colors: LaundryColors = COLORED): Art {
   const [main, left, right] = colors.wet
   const lumps = [
@@ -499,21 +470,6 @@ export function drips(): Art {
         [101, 166, 3],
       ] as const
     ).map(([x, y, d]) => at(x, y, motion('drip', drop(0, 0, C.water, 0.85), d))),
-  )
-}
-
-export function ding(): Art {
-  return part(
-    'ding',
-    at(
-      170,
-      54,
-      motion(
-        'pulse',
-        svg`<path d="M-14 4a14 14 0 0 1 28 0v5l5 7H-19l5-7ZM-5 19a5 5 0 0 0 10 0Z" fill=${C.sun} />`,
-      ),
-      -16,
-    ),
   )
 }
 

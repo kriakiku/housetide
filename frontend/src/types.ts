@@ -36,6 +36,31 @@ export type SceneName =
   | 'backup'
   | 'carwash'
   | 'owl'
+  | 'mop'
+  | 'dust'
+  | 'iron'
+  | 'wardrobe'
+  | 'smoke'
+  | 'aircon'
+  | 'mail'
+  | 'recycle'
+  | 'dogwalk'
+  | 'litter'
+  | 'aquarium'
+  | 'garden'
+  | 'pressure'
+  | 'doctor'
+  | 'sleep'
+  | 'skincare'
+  | 'haircut'
+  | 'eyes'
+  | 'tyres'
+  | 'service'
+  | 'inbox'
+  | 'taxes'
+  | 'gift'
+  | 'suitcase'
+  | 'tomato'
 export type SceneState = 'resting' | 'accumulating' | 'due' | 'running' | 'waiting' | 'clean'
 export type PillSlot = 'taken' | 'missed' | 'current' | 'full'
 export type OnMissed = 'carry' | 'skip'
@@ -218,12 +243,34 @@ export interface Stats {
 
 export interface Settings {
   history_retention_days: number
+  focus_minutes: number
+  short_break_minutes: number
+  long_break_minutes: number
+  rounds_until_long_break: number
+  auto_start_breaks: boolean
+  auto_start_focus: boolean
+}
+
+export type PomodoroPhase = 'idle' | 'focus' | 'short_break' | 'long_break'
+export type PomodoroNext = Exclude<PomodoroPhase, 'idle'>
+export type PomodoroAction = 'start' | 'pause' | 'resume' | 'skip' | 'stop' | 'reset'
+
+export interface PomodoroState {
+  phase: PomodoroPhase
+  ends_at: string | null
+  paused_remaining_seconds: number | null
+  duration_seconds: number | null
+  round: number
+  next_phase: PomodoroNext
+  rounds_today: number
+  rounds_date: string | null
 }
 
 export interface StatePayload {
   tasks: Task[]
   views: TaskView[]
   settings: Settings
+  pomodoro: PomodoroState
   now: string
 }
 

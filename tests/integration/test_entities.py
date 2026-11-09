@@ -27,7 +27,7 @@ async def todo_items(hass: HomeAssistant) -> list[dict[str, Any]]:
 async def test_sensor_follows_task_lifecycle(
     hass: HomeAssistant, manager: HousetideManager, entity_registry: er.EntityRegistry
 ) -> None:
-    assert hass.states.async_entity_ids("sensor") == []
+    assert hass.states.async_entity_ids("sensor") == ["sensor.housetide_pomodoro"]
     task = manager.async_create_task(daily())
     await hass.async_block_till_done()
     entity_id = "sensor.housetide_pills"

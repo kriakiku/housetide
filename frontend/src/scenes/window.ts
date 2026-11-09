@@ -25,9 +25,9 @@ import {
   superellipsePath,
   tintOf,
   when,
+  bubble,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
-import { bubble } from './laundry.ts'
 
 export type WindowSky = 'night' | 'day' | 'bright'
 export type WindowDrape = 'half' | 'tied' | 'open'

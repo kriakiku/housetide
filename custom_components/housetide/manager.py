@@ -29,13 +29,14 @@ from homeassistant.util.hass_dict import HassKey
 from .const import (
     BUS_EVENTS,
     DOMAIN,
+    EVENT_POMODORO_PHASE,
     EVENT_TASK_DUE,
     HISTORY_CAP,
     PRUNE_INTERVAL,
     SIGNAL_UPDATED,
     TICK_INTERVAL,
 )
-from .engine import machine, stats, templates, views
+from .engine import machine, pomodoro, stats, templates, views
 from .engine.machine import Transition
 from .engine.models import (
     MAX_DAYS,
@@ -43,6 +44,7 @@ from .engine.models import (
     HistoryEvent,
     IntervalSchedule,
     OnceSchedule,
+    PomodoroState,
     Runtime,
     Settings,
     Task,
@@ -127,6 +129,7 @@ class HousetideManager:
         self.tasks: dict[str, Task] = {}
         self.runtimes: dict[str, Runtime] = {}
         self.settings = Settings()
+        self.pomodoro = PomodoroState()
         self._storage = HousetideStorage(hass)
         self._events: list[HistoryEvent] = []
         self._announced: dict[str, str] = {}
@@ -141,6 +144,8 @@ class HousetideManager:
         self._dirty = False
         self._printed: dict[str, dict[str, Any]] = {}
         self._pruned_at: datetime | None = None
+        self._pomodoro_timer: CALLBACK_TYPE | None = None
+        self._pomodoro_armed_for: datetime | None = None
 
     @property
     def _zone(self) -> ZoneInfo:
@@ -172,6 +177,12 @@ class HousetideManager:
                 self._events.append(event)
         self._events.sort(key=lambda event: event.ts)
         self._prune(now)
+        raw_pomodoro = stored.get("pomodoro")
+        if raw_pomodoro is not None:
+            self.pomodoro = (
+                self._parsed(PomodoroState.from_dict, raw_pomodoro, "pomodoro") or PomodoroState()
+            )
+        self._expire_pomodoro(now)
 
     @staticmethod
     def _parsed[T](parse: Callable[[Any], T], raw: Any, label: str) -> T | None:
@@ -185,6 +196,7 @@ class HousetideManager:
     def async_start(self) -> None:
         now = dt_util.utcnow()
         self._sync_holds(now)
+        self._arm_pomodoro()
         self._stop_tick = async_track_time_interval(
             self.hass, self._on_tick, TICK_INTERVAL, cancel_on_shutdown=True
         )
@@ -204,6 +216,7 @@ class HousetideManager:
         if self._stop_tick is not None:
             self._stop_tick()
             self._stop_tick = None
+        self._disarm_pomodoro()
         for active in self._holds.values():
             active.disarm()
         self._holds.clear()
@@ -231,6 +244,7 @@ class HousetideManager:
             "tasks": [task.to_dict() for task in self.tasks.values()],
             "views": self.all_views(),
             "settings": self.settings.to_dict(),
+            "pomodoro": self.pomodoro.to_dict(),
             "now": dt_util.utcnow().isoformat(),
         }
 
@@ -340,7 +354,7 @@ class HousetideManager:
 
     @callback
     def async_update_settings(self, data: Mapping[str, Any]) -> Settings:
-        self.settings = Settings.from_dict(data)
+        self.settings = Settings.from_dict({**self.settings.to_dict(), **data})
         now = dt_util.utcnow()
         self._prune(now)
         self._save_tasks()
@@ -348,6 +362,72 @@ class HousetideManager:
         self._dirty = True
         self._settle(now)
         return self.settings
+
+    @callback
+    def async_pomodoro(self, action: str) -> PomodoroState:
+        now = dt_util.utcnow()
+        self._expire_pomodoro(now)
+        try:
+            before = self.pomodoro
+            after = pomodoro.ACTIONS[action](before, self.settings, now, self._zone)
+            self._apply_pomodoro(before, after, announce=after.phase != before.phase)
+        finally:
+            self._arm_pomodoro()
+            self._settle(now)
+        return self.pomodoro
+
+    def _expire_pomodoro(self, now: datetime) -> None:
+        before = self.pomodoro
+        expiry = pomodoro.expire(before, self.settings, now, self._zone)
+        self._apply_pomodoro(before, expiry.state, announce=expiry.steps > 0)
+
+    def _apply_pomodoro(
+        self, before: PomodoroState, after: PomodoroState, *, announce: bool
+    ) -> None:
+        if after == before:
+            return
+        self.pomodoro = after
+        self._save_tasks()
+        self._dirty = True
+        if announce:
+            self._bus.append(
+                (
+                    EVENT_POMODORO_PHASE,
+                    {
+                        "from": before.phase,
+                        "to": after.phase,
+                        "round": after.round,
+                        "rounds_today": after.rounds_today,
+                    },
+                )
+            )
+
+    def _disarm_pomodoro(self) -> None:
+        if self._pomodoro_timer is not None:
+            self._pomodoro_timer()
+            self._pomodoro_timer = None
+        self._pomodoro_armed_for = None
+
+    def _arm_pomodoro(self) -> None:
+        ends_at = self.pomodoro.ends_at
+        if ends_at == self._pomodoro_armed_for:
+            return
+        self._disarm_pomodoro()
+        if ends_at is None:
+            return
+        self._pomodoro_armed_for = ends_at
+        self._pomodoro_timer = async_track_point_in_utc_time(
+            self.hass, HassJob(self._on_pomodoro_end, cancel_on_shutdown=True), ends_at
+        )
+
+    @callback
+    def _on_pomodoro_end(self, moment: datetime) -> None:
+        self._pomodoro_timer = None
+        self._pomodoro_armed_for = None
+        now = max(as_utc(moment), dt_util.utcnow())
+        self._expire_pomodoro(now)
+        self._arm_pomodoro()
+        self._settle(now)
 
     def _require(self, task_id: str) -> Task:
         task = self.tasks.get(task_id)
@@ -416,6 +496,7 @@ class HousetideManager:
             "tasks": [task.to_dict() for task in self.tasks.values()],
             "runtimes": [runtime.to_dict() for runtime in self.runtimes.values()],
             "settings": self.settings.to_dict(),
+            "pomodoro": self.pomodoro.to_dict(),
             "announced": dict(self._announced),
         }
 
@@ -523,6 +604,8 @@ class HousetideManager:
                 self._fired.append((task_id, active.target))
         if self._pruned_at is None or now - self._pruned_at >= PRUNE_INTERVAL:
             self._prune(now)
+        before = self.pomodoro
+        self._apply_pomodoro(before, pomodoro.roll_day(before, now, self._zone), announce=False)
         self._settle(now, tick=True)
 
     def _settle(self, now: datetime, *, tick: bool = False) -> None:

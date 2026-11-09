@@ -16,3 +16,8 @@ undo:
       required: true
       selector:
         text:
+pomodoro_start:
+pomodoro_pause:
+pomodoro_resume:
+pomodoro_skip:
+pomodoro_stop:

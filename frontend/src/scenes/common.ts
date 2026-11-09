@@ -351,3 +351,50 @@ export function sock(
     scale,
   )
 }
+
+export function bubble(x: number, y: number, r: number, delay: number): Art {
+  return part(
+    'bubble',
+    at(
+      x,
+      y,
+      motion(
+        'rise',
+        svg`<circle r=${r} fill=${COLORS.water} opacity=".22" /><circle r=${r} fill="none" stroke="#d6f2ff" stroke-width="2.4" /><circle cx=${-r * 0.35} cy=${-r * 0.35} r=${r * 0.22} fill="#fff" />`,
+        delay,
+      ),
+    ),
+  )
+}
+
+export function cloud(x: number, y: number, s: number, delay: number): Art {
+  return part(
+    'cloud',
+    at(
+      x,
+      y,
+      motion(
+        'drift',
+        svg`<g fill=${COLORS.musty} opacity=".9"><circle cx="-16" cy="4" r="13" /><circle cx="3" cy="-5" r="17" /><circle cx="20" cy="5" r="12" /><rect x="-27" y="3" width="56" height="14" rx="7" /></g><path d="M-14 6q3 3 6 0M4 6q3 3 6 0" fill="none" stroke=${COLORS.mustyDark} stroke-width="3" stroke-linecap="round" />`,
+        delay,
+      ),
+      0,
+      s,
+    ),
+  )
+}
+
+export function ding(): Art {
+  return part(
+    'ding',
+    at(
+      170,
+      54,
+      motion(
+        'pulse',
+        svg`<path d="M-14 4a14 14 0 0 1 28 0v5l5 7H-19l5-7ZM-5 19a5 5 0 0 0 10 0Z" fill=${COLORS.sun} />`,
+      ),
+      -16,
+    ),
+  )
+}

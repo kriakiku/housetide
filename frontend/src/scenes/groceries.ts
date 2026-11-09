@@ -21,9 +21,9 @@ import {
   stenchLines,
   tintOf,
   when,
+  ding,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
-import { ding } from './laundry.ts'
 
 export type GroceriesView = 'bag' | 'pantry' | 'cart' | 'door' | 'full'
 

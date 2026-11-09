@@ -22,9 +22,10 @@ import {
   stenchLines,
   tintOf,
   when,
+  bubble,
+  ding,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
-import { bubble, ding } from './laundry.ts'
 
 export type CarwashView = 'parked' | 'washing' | 'drying' | 'shining'
 

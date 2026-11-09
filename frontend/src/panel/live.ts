@@ -63,6 +63,7 @@ export class StateController implements ReactiveController {
   state: StatePayload | null = null
   failed = false
   now = new Date()
+  clockOffset = 0
 
   private readonly host: ReactiveControllerHost
   private readonly hass: () => HomeAssistant | undefined
@@ -71,7 +72,6 @@ export class StateController implements ReactiveController {
   private unsubscribe: Unsubscribe | undefined
   private generation = 0
   private timer: ReturnType<typeof setInterval> | undefined
-  private clockOffset = 0
 
   constructor(host: ReactiveControllerHost, hass: () => HomeAssistant | undefined) {
     this.host = host

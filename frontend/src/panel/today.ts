@@ -15,6 +15,7 @@ import {
   zoneOf,
 } from './live.ts'
 import { weekdayIndex } from './model.ts'
+import { pomodoroStatus } from './pomodoro.ts'
 import {
   icon,
   iconStyles,
@@ -29,6 +30,7 @@ import type { TaskContext } from './tile.ts'
 
 const MAX_LATER = 8
 const LAYOUT_KEY = 'housetide.today.layout'
+const POMODORO_KEY = 'housetide.today.pomodoro'
 
 type TodayLayout = 'scenes' | 'list'
 
@@ -48,6 +50,22 @@ function storeLayout(layout: TodayLayout): void {
   }
 }
 
+function storedPomodoroOpen(): boolean {
+  try {
+    return localStorage.getItem(POMODORO_KEY) !== 'collapsed'
+  } catch {
+    return true
+  }
+}
+
+function storePomodoroOpen(open: boolean): void {
+  try {
+    localStorage.setItem(POMODORO_KEY, open ? 'open' : 'collapsed')
+  } catch {
+    return
+  }
+}
+
 export class HousetideToday extends LitElement {
   static override properties: PropertyDeclarations = {
     hass: { attribute: false, hasChanged: hassChanged },
@@ -55,7 +73,9 @@ export class HousetideToday extends LitElement {
     now: { attribute: false },
     animations: { attribute: false },
     active: { attribute: false },
+    clockOffset: { attribute: false },
     layout: { state: true },
+    pomodoroOpen: { state: true },
   }
 
   static override styles = [
@@ -193,6 +213,53 @@ export class HousetideToday extends LitElement {
       .later-item .due {
         font-size: 0.8125rem;
       }
+
+      .pomodoro {
+        margin-bottom: 12px;
+      }
+
+      .fold {
+        appearance: none;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 44px;
+        padding: 0 4px;
+        border: none;
+        background: none;
+        color: var(--ht-muted);
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-align: start;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .fold:focus-visible {
+        outline: 2px solid var(--ht-accent);
+        outline-offset: -2px;
+      }
+
+      .fold-status {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        font-weight: 400;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .fold .ht-icon {
+        transition: transform 120ms ease;
+      }
+
+      .fold[aria-expanded='false'] .ht-icon {
+        transform: rotate(-90deg);
+      }
     `,
   ]
 
@@ -201,7 +268,9 @@ export class HousetideToday extends LitElement {
   declare now: Date
   declare animations: boolean
   declare active: boolean
+  declare clockOffset: number
   declare layout: TodayLayout
+  declare pomodoroOpen: boolean
 
   private readonly tracker: ActionTracker
 
@@ -211,7 +280,9 @@ export class HousetideToday extends LitElement {
     this.now = new Date()
     this.animations = true
     this.active = true
+    this.clockOffset = 0
     this.layout = storedLayout()
+    this.pomodoroOpen = storedPomodoroOpen()
     this.tracker = new ActionTracker(this, () => this.hass)
   }
 
@@ -241,6 +312,42 @@ export class HousetideToday extends LitElement {
       ${option('scenes', 'tiles', ctx.i18n.t('config_layout_scenes'))}
       ${option('list', 'list', ctx.i18n.t('config_layout_list'))}
     </div>`
+  }
+
+  private togglePomodoro(): void {
+    this.pomodoroOpen = !this.pomodoroOpen
+    storePomodoroOpen(this.pomodoroOpen)
+  }
+
+  private renderPomodoro(state: StatePayload, ctx: TaskContext): TemplateResult {
+    const { hass, pomodoroOpen: open } = this
+    return html`<section class="pomodoro" data-part="pomodoro">
+      <button
+        class="fold"
+        data-action="toggle-pomodoro"
+        aria-expanded=${open ? 'true' : 'false'}
+        @click=${(): void => {
+          this.togglePomodoro()
+        }}
+      >
+        <span>${ctx.i18n.t('pomodoro_title')}</span>
+        <span class="fold-status"
+          >${open ? nothing : pomodoroStatus(state.pomodoro, ctx.i18n)}</span
+        >
+        ${icon('down')}
+      </button>
+      ${
+        open
+          ? html`<housetide-pomodoro
+              .hass=${hass}
+              .pomodoro=${state.pomodoro}
+              .settings=${state.settings}
+              .clockOffset=${this.clockOffset}
+              .animations=${this.animations}
+            ></housetide-pomodoro>`
+          : nothing
+      }
+    </section>`
   }
 
   private later(views: readonly TaskView[], shown: readonly TaskView[]): TaskView[] {
@@ -311,6 +418,7 @@ export class HousetideToday extends LitElement {
           ${this.renderViews(ctx)}
         </span>
       </div>
+      ${this.renderPomodoro(state, ctx)}
       ${
         shown.length === 0
           ? this.renderClear(ctx)

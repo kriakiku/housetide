@@ -7,7 +7,7 @@ import { sceneStyles } from '../styles.ts'
 import type { PillSlot, SceneName, SceneState, SceneView } from '../types.ts'
 import { COLORS, superellipsePath, tintOf } from './common.ts'
 import { genericParts } from './generic.ts'
-import { renderScene, sceneFor, generic, laundry, pills, plant } from './index.ts'
+import { renderScene } from './index.ts'
 import type { SceneOptions } from './index.ts'
 import { laundryParts, MAX_PILE } from './laundry.ts'
 import { ACCENTS, variantsFor } from './looks.ts'
@@ -52,6 +52,31 @@ const NAMES: SceneName[] = [
   'backup',
   'carwash',
   'owl',
+  'mop',
+  'dust',
+  'iron',
+  'wardrobe',
+  'smoke',
+  'aircon',
+  'mail',
+  'recycle',
+  'dogwalk',
+  'litter',
+  'aquarium',
+  'garden',
+  'pressure',
+  'doctor',
+  'sleep',
+  'skincare',
+  'haircut',
+  'eyes',
+  'tyres',
+  'service',
+  'inbox',
+  'taxes',
+  'gift',
+  'suitcase',
+  'tomato',
 ]
 const STATES: SceneState[] = ['resting', 'accumulating', 'due', 'running', 'waiting', 'clean']
 
@@ -72,16 +97,17 @@ function count(root: Element, name: string): number {
 }
 
 describe('picking a scene', () => {
-  test('finds each scene by name', () => {
-    expect(sceneFor('laundry')).toBe(laundry)
-    expect(sceneFor('pills')).toBe(pills)
-    expect(sceneFor('plant')).toBe(plant)
-    expect(sceneFor('generic')).toBe(generic)
+  test('draws each scene by name', () => {
+    for (const name of ['laundry', 'pills', 'plant', 'generic'] as const) {
+      expect(draw(view(name, 'due')).getAttribute('data-scene')).toBe(name)
+    }
   })
 
   test('falls back to generic for unknown names', () => {
-    expect(sceneFor('toString')).toBe(generic)
-    expect(sceneFor('nope')).toBe(generic)
+    for (const name of ['toString', 'nope']) {
+      const root = draw(view(name as SceneName, 'due'))
+      expect(root.getAttribute('data-scene')).toBe('generic')
+    }
   })
 })
 
@@ -180,7 +206,7 @@ describe('per-task look', () => {
     for (const { color } of ACCENTS) expect(color).toMatch(/^#[0-9a-f]{6}$/)
     expect(new Set(ACCENTS.map(({ color }) => color)).size).toBe(ACCENTS.length)
     const grouped = PICKER_GROUPS.flatMap((group) => group.scenes)
-    expect(grouped.toSorted()).toEqual(NAMES.toSorted())
+    expect(grouped.toSorted()).toEqual(NAMES.filter((name) => name !== 'tomato').toSorted())
   })
 
   test('only pet and laundry have variants', () => {

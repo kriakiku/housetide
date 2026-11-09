@@ -3,6 +3,8 @@ import type {
   HassMessage,
   HomeAssistant,
   HistoryEvent,
+  PomodoroState,
+  Settings,
   Stats,
   StatePayload,
   Task,
@@ -146,8 +148,32 @@ export function task(id: string, override: Partial<Task> = {}): Task {
   }
 }
 
+export const SETTINGS: Settings = {
+  history_retention_days: 365,
+  focus_minutes: 25,
+  short_break_minutes: 5,
+  long_break_minutes: 15,
+  rounds_until_long_break: 4,
+  auto_start_breaks: true,
+  auto_start_focus: false,
+}
+
+export function pomodoroState(override: Partial<PomodoroState> = {}): PomodoroState {
+  return {
+    phase: 'idle',
+    ends_at: null,
+    paused_remaining_seconds: null,
+    duration_seconds: null,
+    round: 1,
+    next_phase: 'focus',
+    rounds_today: 0,
+    rounds_date: '2026-11-04',
+    ...override,
+  }
+}
+
 export function payload(views: TaskView[], tasks: Task[] = []): StatePayload {
-  return { tasks, views, settings: { history_retention_days: 365 }, now: NOW }
+  return { tasks, views, settings: SETTINGS, pomodoro: pomodoroState(), now: NOW }
 }
 
 export function historyEvent(id: string, override: Partial<HistoryEvent> = {}): HistoryEvent {

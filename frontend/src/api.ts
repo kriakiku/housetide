@@ -2,6 +2,8 @@ import type {
   HassMessage,
   HistoryEvent,
   HomeAssistant,
+  PomodoroAction,
+  PomodoroState,
   Settings,
   StatePayload,
   Stats,
@@ -91,6 +93,10 @@ export function deleteTask(hass: WsHost, taskId: string): Promise<unknown> {
   return hass.callWS(message('task/delete', { task_id: taskId }))
 }
 
-export function updateSettings(hass: WsHost, settings: Settings): Promise<unknown> {
+export function updateSettings(hass: WsHost, settings: Partial<Settings>): Promise<unknown> {
   return hass.callWS(message('settings/update', { settings }))
+}
+
+export function pomodoroCommand(hass: WsHost, action: PomodoroAction): Promise<PomodoroState> {
+  return hass.callWS<PomodoroState>(message(`pomodoro/${action}`))
 }

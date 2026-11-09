@@ -40,8 +40,8 @@ async def read_only(
 async def test_state_shape(client: Any) -> None:
     response = await call(client, "state")
     assert response["success"]
-    assert set(response["result"]) == {"tasks", "views", "settings", "now"}
-    assert response["result"]["settings"] == {"history_retention_days": 365}
+    assert set(response["result"]) == {"tasks", "views", "settings", "pomodoro", "now"}
+    assert response["result"]["settings"]["history_retention_days"] == 365
 
 
 async def test_task_crud(
@@ -284,6 +284,30 @@ async def test_templates(client: Any) -> None:
         "backup",
         "carwash",
         "owl",
+        "mop",
+        "dust",
+        "iron",
+        "wardrobe",
+        "smoke",
+        "aircon",
+        "mail",
+        "recycle",
+        "dogwalk",
+        "litter",
+        "aquarium",
+        "garden",
+        "pressure",
+        "doctor",
+        "sleep",
+        "skincare",
+        "haircut",
+        "eyes",
+        "tyres",
+        "service",
+        "inbox",
+        "taxes",
+        "gift",
+        "suitcase",
         "one_off",
     }
     assert "id" not in result["laundry"]
@@ -298,7 +322,8 @@ async def test_settings_update_prunes_history(
     task = manager.async_create_task(daily())
     freezer.tick(timedelta(days=10))
     response = await call(client, "settings/update", settings={"history_retention_days": 5})
-    assert response["result"] == {"history_retention_days": 5}
+    assert response["result"]["history_retention_days"] == 5
+    assert response["result"]["focus_minutes"] == 25
     assert all(event["type"] != "created" for event in manager.history(task.id))
 
 

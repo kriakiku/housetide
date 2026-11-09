@@ -195,6 +195,7 @@ export class HousetidePanel extends LitElement {
       .hass=${hass}
       .state=${state}
       .now=${now}
+      .clockOffset=${this.live.clockOffset}
       .animations=${!pageHidden()}
       .active=${this.tab === 'today'}
       ?hidden=${this.tab !== 'today'}

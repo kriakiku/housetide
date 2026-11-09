@@ -477,7 +477,7 @@ describe('scene picker and look', () => {
       'Learning and work',
       'Life',
     ])
-    expect(form.querySelectorAll('button[data-scene]').length).toBe(37)
+    expect(form.querySelectorAll('button[data-scene]').length).toBe(61)
     type(form, 'scene-filter', 'car')
     await settle(panel)
     expect(headings()).toContain('Car')

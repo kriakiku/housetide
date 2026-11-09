@@ -2,7 +2,7 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal, NoReturn, get_args
 
 OnMissed = Literal["carry", "skip"]
@@ -44,6 +44,31 @@ SceneName = Literal[
     "backup",
     "carwash",
     "owl",
+    "mop",
+    "dust",
+    "iron",
+    "wardrobe",
+    "smoke",
+    "aircon",
+    "mail",
+    "recycle",
+    "dogwalk",
+    "litter",
+    "aquarium",
+    "garden",
+    "pressure",
+    "doctor",
+    "sleep",
+    "skincare",
+    "haircut",
+    "eyes",
+    "tyres",
+    "service",
+    "inbox",
+    "taxes",
+    "gift",
+    "suitcase",
+    "tomato",
 ]
 Role = Literal["todo", "running", "waiting"]
 Anchor = Literal["completion", "schedule"]
@@ -51,11 +76,19 @@ EventType = Literal[
     "started", "advanced", "completed", "skipped", "missed", "undone", "created", "deleted"
 ]
 EventSource = Literal["manual", "trigger", "service", "schedule", "todo"]
+PomodoroPhase = Literal["idle", "focus", "short_break", "long_break"]
+PomodoroNext = Literal["focus", "short_break", "long_break"]
 
 DEFAULT_CLEAN_FOR_MINUTES = 720
 DEFAULT_GRACE_HOURS = 24
 DEFAULT_DEADLINE = "23:59"
 DEFAULT_HISTORY_RETENTION_DAYS = 365
+DEFAULT_FOCUS_MINUTES = 25
+DEFAULT_SHORT_BREAK_MINUTES = 5
+DEFAULT_LONG_BREAK_MINUTES = 15
+DEFAULT_ROUNDS_UNTIL_LONG_BREAK = 4
+MAX_POMODORO_MINUTES = 1440
+MAX_POMODORO_ROUNDS = 12
 MAX_DAYS = 36500
 MAX_VARIANT_LENGTH = 32
 PACK_SIZE = 7
@@ -671,13 +704,36 @@ class HistoryEvent:
         }
 
 
+_SETTINGS_FIELDS = frozenset(
+    {
+        "history_retention_days",
+        "focus_minutes",
+        "short_break_minutes",
+        "long_break_minutes",
+        "rounds_until_long_break",
+        "auto_start_breaks",
+        "auto_start_focus",
+    }
+)
+
+
+def _minutes(data: Mapping[str, Any], key: str, path: str, default: int) -> int:
+    return _integer(data, key, path, minimum=1, maximum=MAX_POMODORO_MINUTES, default=default)
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     history_retention_days: int = DEFAULT_HISTORY_RETENTION_DAYS
+    focus_minutes: int = DEFAULT_FOCUS_MINUTES
+    short_break_minutes: int = DEFAULT_SHORT_BREAK_MINUTES
+    long_break_minutes: int = DEFAULT_LONG_BREAK_MINUTES
+    rounds_until_long_break: int = DEFAULT_ROUNDS_UNTIL_LONG_BREAK
+    auto_start_breaks: bool = True
+    auto_start_focus: bool = False
 
     @classmethod
     def from_dict(cls, value: Any, path: str = "settings") -> Settings:
-        data = _mapping(value, path, frozenset({"history_retention_days"}))
+        data = _mapping(value, path, _SETTINGS_FIELDS)
         return cls(
             history_retention_days=_integer(
                 data,
@@ -686,8 +742,108 @@ class Settings:
                 minimum=1,
                 maximum=MAX_DAYS,
                 default=DEFAULT_HISTORY_RETENTION_DAYS,
-            )
+            ),
+            focus_minutes=_minutes(data, "focus_minutes", path, DEFAULT_FOCUS_MINUTES),
+            short_break_minutes=_minutes(
+                data, "short_break_minutes", path, DEFAULT_SHORT_BREAK_MINUTES
+            ),
+            long_break_minutes=_minutes(
+                data, "long_break_minutes", path, DEFAULT_LONG_BREAK_MINUTES
+            ),
+            rounds_until_long_break=_integer(
+                data,
+                "rounds_until_long_break",
+                path,
+                minimum=1,
+                maximum=MAX_POMODORO_ROUNDS,
+                default=DEFAULT_ROUNDS_UNTIL_LONG_BREAK,
+            ),
+            auto_start_breaks=_boolean(data, "auto_start_breaks", path, default=True),
+            auto_start_focus=_boolean(data, "auto_start_focus", path, default=False),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"history_retention_days": self.history_retention_days}
+        return {
+            "history_retention_days": self.history_retention_days,
+            "focus_minutes": self.focus_minutes,
+            "short_break_minutes": self.short_break_minutes,
+            "long_break_minutes": self.long_break_minutes,
+            "rounds_until_long_break": self.rounds_until_long_break,
+            "auto_start_breaks": self.auto_start_breaks,
+            "auto_start_focus": self.auto_start_focus,
+        }
+
+
+_POMODORO_FIELDS = frozenset(
+    {
+        "phase",
+        "ends_at",
+        "paused_remaining_seconds",
+        "duration_seconds",
+        "round",
+        "next_phase",
+        "rounds_today",
+        "rounds_date",
+    }
+)
+
+
+def _optional_date(data: Mapping[str, Any], key: str, path: str) -> str | None:
+    value = data.get(key)
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value).isoformat()
+    except TypeError, ValueError:
+        _fail(f"{path}.{key}", "must be a date formatted as YYYY-MM-DD")
+
+
+@dataclass(frozen=True, slots=True)
+class PomodoroState:
+    phase: PomodoroPhase = "idle"
+    ends_at: datetime | None = None
+    paused_remaining_seconds: float | None = None
+    duration_seconds: int | None = None
+    round: int = 1
+    next_phase: PomodoroNext = "focus"
+    rounds_today: int = 0
+    rounds_date: str | None = None
+
+    @classmethod
+    def from_dict(cls, value: Any, path: str = "pomodoro") -> PomodoroState:
+        data = _mapping(value, path, _POMODORO_FIELDS)
+        phase = _enum(data, "phase", path, PomodoroPhase)
+        ends_at = _optional_instant(data, "ends_at", path)
+        paused = _optional_number(data, "paused_remaining_seconds", path)
+        duration = _optional_integer(data, "duration_seconds", path, minimum=1)
+        if paused is not None and paused < 0:
+            _fail(f"{path}.paused_remaining_seconds", "must not be negative")
+        if phase == "idle" and (ends_at, paused, duration) != (None, None, None):
+            _fail(path, "an idle timer has no end, remainder or duration")
+        if phase != "idle" and ((ends_at is None) == (paused is None) or duration is None):
+            _fail(path, "a phase needs a duration and exactly one of ends_at and remainder")
+        next_phase = _enum(data, "next_phase", path, PomodoroNext)
+        if phase != "idle" and next_phase != "focus":
+            _fail(f"{path}.next_phase", "must be focus during a phase")
+        return cls(
+            phase=phase,
+            ends_at=ends_at,
+            paused_remaining_seconds=paused,
+            duration_seconds=duration,
+            round=_integer(data, "round", path, minimum=1),
+            next_phase=next_phase,
+            rounds_today=_integer(data, "rounds_today", path, minimum=0),
+            rounds_date=_optional_date(data, "rounds_date", path),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "phase": self.phase,
+            "ends_at": format_instant(self.ends_at),
+            "paused_remaining_seconds": self.paused_remaining_seconds,
+            "duration_seconds": self.duration_seconds,
+            "round": self.round,
+            "next_phase": self.next_phase,
+            "rounds_today": self.rounds_today,
+            "rounds_date": self.rounds_date,
+        }

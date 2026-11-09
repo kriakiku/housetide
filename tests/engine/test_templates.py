@@ -49,6 +49,30 @@ NOW = at("2026-06-10T07:00:00+03:00")
         ("backup", "backup", "carry", "interval", 1),
         ("carwash", "carwash", "carry", "interval", 1),
         ("owl", "owl", "skip", "daily", 1),
+        ("mop", "mop", "carry", "interval", 1),
+        ("dust", "dust", "carry", "interval", 1),
+        ("iron", "iron", "carry", "weekly", 1),
+        ("wardrobe", "wardrobe", "carry", "interval", 1),
+        ("smoke", "smoke", "carry", "interval", 1),
+        ("aircon", "aircon", "carry", "interval", 1),
+        ("mail", "mail", "carry", "interval", 1),
+        ("recycle", "recycle", "carry", "interval", 1),
+        ("dogwalk", "dogwalk", "skip", "daily", 1),
+        ("litter", "litter", "carry", "daily", 1),
+        ("aquarium", "aquarium", "carry", "interval", 1),
+        ("garden", "garden", "carry", "interval", 1),
+        ("pressure", "pressure", "skip", "daily", 1),
+        ("doctor", "doctor", "carry", "interval", 2),
+        ("sleep", "sleep", "skip", "daily", 1),
+        ("skincare", "skincare", "skip", "daily", 1),
+        ("haircut", "haircut", "carry", "interval", 1),
+        ("eyes", "eyes", "skip", "daily", 1),
+        ("tyres", "tyres", "carry", "interval", 1),
+        ("service", "service", "carry", "interval", 2),
+        ("inbox", "inbox", "skip", "daily", 1),
+        ("taxes", "taxes", "carry", "interval", 2),
+        ("gift", "gift", "carry", "interval", 2),
+        ("suitcase", "suitcase", "carry", "once", 1),
         ("one_off", "generic", "carry", "once", 1),
     ],
 )
@@ -103,6 +127,30 @@ def test_only_expected_templates() -> None:
         "backup",
         "carwash",
         "owl",
+        "mop",
+        "dust",
+        "iron",
+        "wardrobe",
+        "smoke",
+        "aircon",
+        "mail",
+        "recycle",
+        "dogwalk",
+        "litter",
+        "aquarium",
+        "garden",
+        "pressure",
+        "doctor",
+        "sleep",
+        "skincare",
+        "haircut",
+        "eyes",
+        "tyres",
+        "service",
+        "inbox",
+        "taxes",
+        "gift",
+        "suitcase",
         "one_off",
     }
 
@@ -160,8 +208,10 @@ def test_stage_ids_are_unique_across_templates() -> None:
 
 def test_every_scene_has_a_template_with_its_name() -> None:
     all_templates = templates(NOW, KYIV)
-    assert len(all_templates) == 37
+    assert len(all_templates) == 61
     for scene in get_args(SceneName):
+        if scene == "tomato":
+            continue
         assert all_templates["one_off" if scene == "generic" else scene]["scene"] == scene
 
 
@@ -194,6 +244,38 @@ def test_every_scene_has_a_template_with_its_name() -> None:
             "carwash",
             {"type": "interval", "every_days": 30, "time": "11:00", "anchor": "completion"},
         ),
+        ("mop", {"type": "interval", "every_days": 7, "time": "11:00", "anchor": "completion"}),
+        ("dust", {"type": "interval", "every_days": 14, "time": "11:00", "anchor": "completion"}),
+        ("iron", {"type": "weekly", "weekdays": [6], "time": "19:00"}),
+        (
+            "wardrobe",
+            {"type": "interval", "every_days": 90, "time": "11:00", "anchor": "completion"},
+        ),
+        ("smoke", {"type": "interval", "every_days": 180, "time": "11:00", "anchor": "schedule"}),
+        ("aircon", {"type": "interval", "every_days": 90, "time": "11:00", "anchor": "completion"}),
+        ("mail", {"type": "interval", "every_days": 3, "time": "18:00", "anchor": "completion"}),
+        ("recycle", {"type": "interval", "every_days": 7, "time": "19:00", "anchor": "completion"}),
+        ("dogwalk", {"type": "daily", "time": "08:00"}),
+        ("litter", {"type": "daily", "time": "09:00"}),
+        (
+            "aquarium",
+            {"type": "interval", "every_days": 14, "time": "11:00", "anchor": "completion"},
+        ),
+        ("garden", {"type": "interval", "every_days": 3, "time": "18:00", "anchor": "completion"}),
+        ("pressure", {"type": "daily", "time": "09:00"}),
+        ("doctor", {"type": "interval", "every_days": 180, "time": "10:00", "anchor": "schedule"}),
+        ("sleep", {"type": "daily", "time": "23:00"}),
+        ("skincare", {"type": "daily", "time": "22:00"}),
+        (
+            "haircut",
+            {"type": "interval", "every_days": 30, "time": "12:00", "anchor": "completion"},
+        ),
+        ("eyes", {"type": "daily", "time": "15:00"}),
+        ("tyres", {"type": "interval", "every_days": 30, "time": "11:00", "anchor": "completion"}),
+        ("service", {"type": "interval", "every_days": 180, "time": "10:00", "anchor": "schedule"}),
+        ("inbox", {"type": "daily", "time": "23:59", "anytime": True}),
+        ("taxes", {"type": "interval", "every_days": 90, "time": "10:00", "anchor": "schedule"}),
+        ("gift", {"type": "interval", "every_days": 365, "time": "10:00", "anchor": "schedule"}),
     ],
 )
 def test_new_template_schedules(name: str, schedule: dict[str, Any]) -> None:
@@ -205,12 +287,31 @@ def test_slides_are_due_like_a_one_off() -> None:
     assert all_templates["slides"]["schedule"] == all_templates["one_off"]["schedule"]
 
 
+def test_suitcase_is_due_like_a_one_off() -> None:
+    all_templates = templates(NOW, KYIV)
+    assert all_templates["suitcase"]["schedule"] == all_templates["one_off"]["schedule"]
+
+
+def test_inbox_details() -> None:
+    template = templates(NOW, KYIV)["inbox"]
+    assert template["grace_hours"] == 6
+
+
+def test_tomato_has_no_template() -> None:
+    assert "tomato" in get_args(SceneName)
+    assert "tomato" not in templates(NOW, KYIV)
+
+
 @pytest.mark.parametrize(
     ("name", "stages"),
     [
         ("ev", [("Plug it in", "todo", "Plugged in"), ("Charging", "running", "Charged")]),
         ("slides", [("Draft the slides", "todo", "Drafted"), ("Rehearse", "waiting", "Rehearsed")]),
         ("bills", [("Pay", "todo", "Paid"), ("Check it went through", "waiting", "Confirmed")]),
+        ("doctor", [("Book", "todo", "Booked"), ("Go to the appointment", "waiting", "Done")]),
+        ("service", [("Book it", "todo", "Booked"), ("Drop it off", "waiting", "Done")]),
+        ("taxes", [("Prepare", "todo", "Prepared"), ("Submit", "waiting", "Submitted")]),
+        ("gift", [("Find a gift", "todo", "Bought"), ("Wrap it", "waiting", "Wrapped")]),
     ],
 )
 def test_two_stage_templates(name: str, stages: list[tuple[str, str, str]]) -> None:

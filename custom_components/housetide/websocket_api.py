@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import SIGNAL_UPDATED
+from .engine import pomodoro
 from .engine.machine import MachineError
 from .engine.models import ValidationError, parse_instant
 from .manager import HousetideManager, TaskNotFoundError, get_manager
@@ -189,6 +190,18 @@ def ws_settings_update(
     connection.send_result(msg["id"], manager.async_update_settings(msg["settings"]).to_dict())
 
 
+def _pomodoro_command(action: str) -> websocket_api.WebSocketCommandHandler:
+    @websocket_api.websocket_command({vol.Required("type"): f"housetide/pomodoro/{action}"})
+    @callback
+    @_with_manager
+    def ws_pomodoro(
+        manager: HousetideManager, connection: ActiveConnection, msg: dict[str, Any]
+    ) -> None:
+        connection.send_result(msg["id"], manager.async_pomodoro(action).to_dict())
+
+    return ws_pomodoro
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for command in (
@@ -204,5 +217,6 @@ def async_register(hass: HomeAssistant) -> None:
         ws_task_update,
         ws_task_delete,
         ws_settings_update,
+        *(_pomodoro_command(action) for action in pomodoro.ACTIONS),
     ):
         websocket_api.async_register_command(hass, command)
