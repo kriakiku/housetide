@@ -3,10 +3,14 @@ import type { PropertyDeclarations, PropertyValues, TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { styleMap } from 'lit/directives/style-map.js'
 
-import { assertCardConfig } from './card.ts'
+import { assertCardConfig, COLUMN_COUNTS, GRID_LAYOUTS } from './card.ts'
 import type { CardConfig } from './card.ts'
 import type { I18n } from './i18n.ts'
+import { defaultGesture, GESTURE_ACTIONS, GESTURE_NAMES } from './panel/gestures.ts'
+import type { GestureAction, GestureMap, GestureName } from './panel/gestures.ts'
 import { hassChanged, localeOf, StateController } from './panel/live.ts'
+import { effectiveHide, HIDE_KEYS, impliedHide } from './panel/tile.ts'
+import type { HideKey } from './panel/tile.ts'
 import { sceneSurface } from './scenes/common.ts'
 import { renderScene } from './scenes/index.ts'
 import { controls, sceneStyles, tokens } from './styles.ts'
@@ -17,9 +21,12 @@ type Show = NonNullable<CardConfig['show']>
 
 const DEFAULTS = { show: 'today', layout: 'list', animations: true } as const
 
-const LAYOUTS: Array<{ value: Layout; label: 'config_layout_scenes' | 'config_layout_list' }> = [
+const LAYOUTS: Array<{ value: Layout; label: `config_layout_${Layout}` }> = [
   { value: 'scenes', label: 'config_layout_scenes' },
   { value: 'list', label: 'config_layout_list' },
+  { value: 'picture', label: 'config_layout_picture' },
+  { value: 'compact', label: 'config_layout_compact' },
+  { value: 'bubbles', label: 'config_layout_bubbles' },
 ]
 
 const SHOWS: Array<{ value: Show; label: 'config_show_today' | 'config_show_all' }> = [
@@ -49,16 +56,48 @@ function thumbnail(scene: SceneView): TemplateResult {
   return renderScene(scene, { animations: false, bleed: true })
 }
 
+const EXTRA_PREVIEW: SceneView = { name: 'generic', state: 'clean', fill: 0, stink: 0, progress: 1 }
+
+function previewText(layout: Layout): TemplateResult | typeof nothing {
+  if (layout === 'picture' || layout === 'bubbles') return nothing
+  if (layout === 'compact')
+    return html`<div class="mini-text"><i></i></div>
+      <b></b>`
+  return html`<div class="mini-text"><i></i><i></i></div>`
+}
+
 function layoutPreview(layout: Layout): TemplateResult {
+  const scenes =
+    layout === 'picture' || layout === 'bubbles'
+      ? [...PREVIEW_SCENES, EXTRA_PREVIEW]
+      : PREVIEW_SCENES
   return html`<div class="preview preview-${layout}" aria-hidden="true">
-    ${PREVIEW_SCENES.map(
+    ${scenes.map(
       (scene) =>
         html`<div class="mini" style=${styleMap(surface(scene))}>
           <div class="mini-art">${thumbnail(scene)}</div>
-          <div class="mini-text"><i></i><i></i></div>
+          ${previewText(layout)}
         </div>`,
     )}
   </div>`
+}
+
+function tidied(config: CardConfig): CardConfig {
+  const layout = config.layout ?? DEFAULTS.layout
+  const { hide, gestures, ...rest } = config
+  const tidy: CardConfig = { ...rest }
+  const implied = impliedHide(layout)
+  const kept = hide?.filter((key) => !implied.includes(key)) ?? []
+  if (kept.length > 0) tidy.hide = kept
+  const overrides: GestureMap = {}
+  for (const gesture of GESTURE_NAMES) {
+    const action = gestures?.[gesture]
+    if (action !== undefined && action !== defaultGesture(layout, gesture)) {
+      overrides[gesture] = action
+    }
+  }
+  if (Object.keys(overrides).length > 0) tidy.gestures = overrides
+  return tidy
 }
 
 function taskScene(task: Task, state: StatePayload): SceneView {
@@ -201,6 +240,82 @@ export class HousetideCardEditor extends LitElement {
 
       .preview-list .mini-art {
         height: 40px;
+      }
+
+      .preview-picture {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .preview-picture .mini-art {
+        aspect-ratio: 1;
+      }
+
+      .preview-compact .mini {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr) 12px;
+        align-items: center;
+        gap: 2px;
+        height: 26px;
+        padding-right: 6px;
+        background: var(--ht-wall);
+      }
+
+      .preview-compact .mini-art {
+        height: 26px;
+      }
+
+      .preview-compact b {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        opacity: 0.85;
+      }
+
+      .preview-bubbles {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .preview-bubbles .mini {
+        border-radius: 50%;
+        corner-shape: round;
+      }
+
+      .preview-bubbles .mini-art {
+        aspect-ratio: 1;
+      }
+
+      .checks {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 4px 12px;
+      }
+
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+
+      .check input {
+        flex: none;
+        width: 24px;
+        height: 24px;
+        margin: 0;
+        accent-color: var(--ht-accent);
+      }
+
+      .check[data-off] {
+        color: var(--ht-muted);
+        cursor: default;
+      }
+
+      .gestures {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px 12px;
       }
 
       .segments {
@@ -378,6 +493,16 @@ export class HousetideCardEditor extends LitElement {
     if (changed.has('hass')) this.live.sync()
   }
 
+  protected override updated(): void {
+    const layout = this.config.layout ?? DEFAULTS.layout
+    for (const gesture of GESTURE_NAMES) {
+      const select = this.renderRoot.querySelector<HTMLSelectElement>(
+        `select[data-gesture="${gesture}"]`,
+      )
+      if (select) select.value = this.config.gestures?.[gesture] ?? defaultGesture(layout, gesture)
+    }
+  }
+
   private commit(config: CardConfig): void {
     this.config = config
     this.dispatchEvent(
@@ -391,14 +516,15 @@ export class HousetideCardEditor extends LitElement {
 
   private chooseColumns(columns: number | undefined): void {
     const { config } = this
-    if (config.columns === columns) return
+    const current = typeof config.columns === 'number' ? config.columns : undefined
+    if (current === columns) return
     const { columns: _previous, ...rest } = config
     this.commit(columns === undefined ? rest : { ...config, columns })
   }
 
   private columnsSection(i18n: I18n): TemplateResult | typeof nothing {
-    if ((this.config.layout ?? DEFAULTS.layout) !== 'scenes') return nothing
-    const current = this.config.columns
+    if (!GRID_LAYOUTS.includes(this.config.layout ?? DEFAULTS.layout)) return nothing
+    const current = typeof this.config.columns === 'number' ? this.config.columns : undefined
     const option = (value: number | undefined, label: string): TemplateResult =>
       html`<button
         type="button"
@@ -414,8 +540,87 @@ export class HousetideCardEditor extends LitElement {
     return html`<section>
       <h3>${i18n.t('config_columns')}</h3>
       <div class="segments" role="group" aria-label=${i18n.t('config_columns')}>
-        ${option(undefined, i18n.t('config_columns_auto'))} ${option(2, '2')} ${option(3, '3')}
-        ${option(4, '4')}
+        ${option(undefined, i18n.t('config_columns_auto'))}
+        ${COLUMN_COUNTS.map((count) => option(count, String(count)))}
+      </div>
+    </section>`
+  }
+
+  private toggleHide(key: HideKey, on: boolean): void {
+    const { hide = [] } = this.config
+    const wanted = new Set(hide)
+    if (on) wanted.add(key)
+    else wanted.delete(key)
+    this.commit(tidied({ ...this.config, hide: HIDE_KEYS.filter((item) => wanted.has(item)) }))
+  }
+
+  private hideSection(i18n: I18n, layout: Layout): TemplateResult {
+    const implied = impliedHide(layout)
+    const hidden = effectiveHide(layout, this.config.hide)
+    const hint =
+      implied.length === 0
+        ? undefined
+        : i18n.t(layout === 'compact' ? 'config_hide_compact_hint' : 'config_hide_bare_hint')
+    return html`<section>
+      <h3>${i18n.t('config_hide')}</h3>
+      <div class="checks" role="group" aria-label=${i18n.t('config_hide')}>
+        ${HIDE_KEYS.map((key) => {
+          const off = implied.includes(key)
+          return html`<label class="check" ?data-off=${off}>
+            <input
+              type="checkbox"
+              data-hide=${key}
+              .checked=${hidden.has(key)}
+              ?disabled=${off}
+              aria-describedby=${off ? 'hide-hint' : nothing}
+              @change=${(event: Event): void => {
+                if (event.target instanceof HTMLInputElement) {
+                  this.toggleHide(key, event.target.checked)
+                }
+              }}
+            />
+            <span>${i18n.t(`config_hide_${key}`)}</span>
+          </label>`
+        })}
+      </div>
+      ${hint ? html`<p class="hint" id="hide-hint" data-part="hide-hint">${hint}</p>` : nothing}
+    </section>`
+  }
+
+  private chooseGesture(gesture: GestureName, action: GestureAction): void {
+    this.commit(
+      tidied({ ...this.config, gestures: { ...this.config.gestures, [gesture]: action } }),
+    )
+  }
+
+  private gestureSection(i18n: I18n, layout: Layout): TemplateResult {
+    return html`<section>
+      <h3>${i18n.t('config_gestures')}</h3>
+      <p class="hint">${i18n.t('config_gestures_hint')}</p>
+      <div class="gestures">
+        ${GESTURE_NAMES.map((gesture) => {
+          const fallback = defaultGesture(layout, gesture)
+          return html`<label class="ht-label">
+            ${i18n.t(`config_gesture_${gesture}`)}
+            <select
+              class="ht-input"
+              data-gesture=${gesture}
+              @change=${(event: Event): void => {
+                const { target } = event
+                if (!(target instanceof HTMLSelectElement)) return
+                const action = GESTURE_ACTIONS.find((item) => item === target.value)
+                if (action) this.chooseGesture(gesture, action)
+              }}
+            >
+              ${GESTURE_ACTIONS.map((action) => {
+                const name = i18n.t(`config_gesture_${action}`)
+                return html`<option value=${action}>
+                  ${action === fallback ? i18n.t('config_gesture_default', { action: name }) : name}
+                </option>`
+              })}
+            </select>
+          </label>`
+        })}
       </div>
     </section>`
   }
@@ -424,6 +629,14 @@ export class HousetideCardEditor extends LitElement {
     const { config } = this
     if (Object.hasOwn(config, key) ? config[key] === value : value === DEFAULTS[key]) return
     this.commit({ ...config, [key]: value })
+  }
+
+  private chooseLayout(layout: Layout): void {
+    const { config } = this
+    if (Object.hasOwn(config, 'layout') ? config.layout === layout : layout === DEFAULTS.layout) {
+      return
+    }
+    this.commit(tidied({ ...config, layout }))
   }
 
   private readonly onTitle = (event: Event): void => {
@@ -557,7 +770,7 @@ export class HousetideCardEditor extends LitElement {
                 data-layout=${item.value}
                 aria-pressed=${layout === item.value ? 'true' : 'false'}
                 @click=${(): void => {
-                  this.choose('layout', item.value)
+                  this.chooseLayout(item.value)
                 }}
               >
                 ${layoutPreview(item.value)}
@@ -566,7 +779,8 @@ export class HousetideCardEditor extends LitElement {
           )}
         </div>
       </section>
-      ${this.columnsSection(i18n)}
+      ${this.columnsSection(i18n)} ${this.hideSection(i18n, layout)}
+      ${this.gestureSection(i18n, layout)}
       <section>
         <h3>${i18n.t('config_show')}</h3>
         <div class="segments" role="group" aria-label=${i18n.t('config_show')}>

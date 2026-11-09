@@ -1,11 +1,14 @@
 import { css, html, nothing, svg } from 'lit'
 import type { TemplateResult } from 'lit'
+import { ifDefined } from 'lit/directives/if-defined.js'
 import { styleMap } from 'lit/directives/style-map.js'
 
 import type { I18n } from '../i18n.ts'
 import { sceneSurface } from '../scenes/common.ts'
 import { renderScene } from '../scenes/index.ts'
 import type { TaskView } from '../types.ts'
+import { taskGestures } from './gestures.ts'
+import type { ActiveGestures, CardLayout, GestureOptions, TaskAction } from './gestures.ts'
 import { compareKeys, isEarly, orderKey } from './live.ts'
 import type { ActionTracker } from './live.ts'
 
@@ -108,7 +111,7 @@ function iconBadge(view: TaskView): TemplateResult | typeof nothing {
   return html`<span class="badge" aria-hidden="true"><ha-icon .icon=${view.icon}></ha-icon></span>`
 }
 
-function goButton(view: TaskView, ctx: TaskContext): TemplateResult {
+function goButton(view: TaskView, ctx: TaskContext, iconOnly = false): TemplateResult {
   const { i18n, tracker } = ctx
   const id = view.task_id
   const finished = tracker.justCompleted(id)
@@ -120,8 +123,9 @@ function goButton(view: TaskView, ctx: TaskContext): TemplateResult {
   else if (unavailable) label = i18n.t(`status_${view.status}`)
   else if (early) label = i18n.t(armed ? 'action_early_confirm' : 'action_early')
   const quiet = !armed && (!needsAttention(view) || view.automated)
+  const more = view.stage_index + 1 < view.stage_count
   return html`<button
-    class="go ${quiet ? 'quiet' : 'loud'} ${finished ? 'finished' : ''}"
+    class="go ${quiet ? 'quiet' : 'loud'} ${finished ? 'finished' : ''} ${iconOnly ? 'icon-only' : ''}"
     data-action="advance"
     aria-label="${label}: ${view.title}"
     ?disabled=${unavailable || finished || ctx.offline}
@@ -130,8 +134,11 @@ function goButton(view: TaskView, ctx: TaskContext): TemplateResult {
       void tracker.press(view)
     }}
   >
-    ${finished ? icon('check') : nothing}
-    <span>${label}</span>
+    ${
+      iconOnly
+        ? icon(more && !finished ? 'chevron' : 'check')
+        : html`${finished ? icon('check') : nothing}<span>${label}</span>`
+    }
   </button>`
 }
 
@@ -226,14 +233,26 @@ function skipButton(
   </button>`
 }
 
-function textBlock(view: TaskView, ctx: TaskContext): TemplateResult {
+function textBlock(
+  view: TaskView,
+  ctx: TaskContext,
+  hide: ReadonlySet<HideKey>,
+): TemplateResult | typeof nothing {
   const failed = ctx.tracker.error(view.task_id) !== undefined
+  const title = !hide.has('title')
+  const stage = !hide.has('stage') && !failed
+  const due = !hide.has('due') || failed
+  if (!title && !stage && !due) return nothing
   return html`<div class="text">
-    <div class="title">${view.title}</div>
-    <div class="meta">
-      ${failed ? nothing : stageLine(view, ctx)}
-      <div class="when">${dueLine(view, ctx)}</div>
-    </div>
+    ${title ? html`<div class="title">${view.title}</div>` : nothing}
+    ${
+      stage || due
+        ? html`<div class="meta">
+            ${stage ? stageLine(view, ctx) : nothing}
+            ${due ? html`<div class="when">${dueLine(view, ctx)}</div>` : nothing}
+          </div>`
+        : nothing
+    }
   </div>`
 }
 
@@ -244,8 +263,133 @@ function actions(view: TaskView, ctx: TaskContext, skip: boolean): TemplateResul
   </div>`
 }
 
+export const HIDE_KEYS = ['title', 'stage', 'due', 'button', 'header'] as const
+export type HideKey = (typeof HIDE_KEYS)[number]
+
+const TEXT_KEYS: readonly HideKey[] = ['title', 'stage', 'due']
+const BARE_KEYS: readonly HideKey[] = ['title', 'stage', 'due', 'button']
+const NOTHING_HIDDEN: ReadonlySet<HideKey> = new Set()
+
+export function impliedHide(layout: CardLayout): readonly HideKey[] {
+  if (layout === 'picture' || layout === 'bubbles') return BARE_KEYS
+  if (layout === 'compact') return ['stage', 'due']
+  return []
+}
+
+export function effectiveHide(
+  layout: CardLayout,
+  hide: readonly HideKey[] = [],
+): ReadonlySet<HideKey> {
+  return new Set([...impliedHide(layout), ...hide])
+}
+
 export interface TaskOptions {
   skip?: boolean
+  hide?: ReadonlySet<HideKey>
+  gestures?: ActiveGestures
+}
+
+type TaskKind = 'row' | 'tile' | 'picture' | 'compact' | 'bubble'
+
+function hideClasses(view: TaskView, ctx: TaskContext, hide: ReadonlySet<HideKey>): string {
+  const names: string[] = []
+  const bare = TEXT_KEYS.every((key) => hide.has(key))
+  if (bare) names.push('no-text')
+  if (hide.has('stage')) names.push('no-stage')
+  if (hide.has('button')) names.push('no-button')
+  if (bare && (view.status === 'due' || view.status === 'overdue')) {
+    names.push('ring')
+    if (ctx.animations) names.push('ring-pulse')
+  }
+  return names.join(' ')
+}
+
+function spokenLabel(
+  view: TaskView,
+  ctx: TaskContext,
+  hide: ReadonlySet<HideKey>,
+): string | undefined {
+  if (!TEXT_KEYS.some((key) => hide.has(key))) return undefined
+  const parts = [view.title]
+  if (view.stage_title && view.stage_title !== view.title) parts.push(view.stage_title)
+  parts.push(ctx.i18n.dueText(view, ctx.now))
+  if (view.automated) parts.push(ctx.i18n.t('automated'))
+  return parts.filter(Boolean).join(', ')
+}
+
+function actionAvailable(view: TaskView, ctx: TaskContext, action: TaskAction): boolean {
+  const { tracker } = ctx
+  const id = view.task_id
+  if (ctx.offline || tracker.isPending(id)) return false
+  if (action === 'skip') return view.can_skip
+  if (action === 'undo') return view.can_undo
+  return view.can_advance && !tracker.justCompleted(id) && !tracker.isCooling(id)
+}
+
+function runAction(view: TaskView, ctx: TaskContext, action: TaskAction): void {
+  const { tracker } = ctx
+  if (action === 'advance') void tracker.advance(view)
+  else if (action === 'skip') void tracker.skip(view)
+  else void tracker.undo(view)
+}
+
+function gestureOptions(
+  view: TaskView,
+  ctx: TaskContext,
+  gestures: ActiveGestures | undefined,
+  kind: TaskKind,
+): GestureOptions | null {
+  if (!gestures || Object.keys(gestures).length === 0) return null
+  return {
+    gestures,
+    animations: ctx.animations,
+    fade: kind === 'picture' || kind === 'bubble',
+    available: (action) => actionAvailable(view, ctx, action),
+    run: (action) => {
+      runAction(view, ctx, action)
+    },
+  }
+}
+
+const FACES = {
+  advance: 'check',
+  skip: 'skip',
+  undo: 'undo',
+} as const
+
+function faceLabel(view: TaskView, ctx: TaskContext, action: TaskAction): string {
+  return action === 'advance' ? advanceLabel(view, ctx.i18n) : ctx.i18n.t(`action_${action}`)
+}
+
+function hosted(
+  kind: TaskKind,
+  view: TaskView,
+  ctx: TaskContext,
+  gestures: ActiveGestures | undefined,
+  task: TemplateResult,
+): TemplateResult {
+  if (!gestures || Object.keys(gestures).length === 0) return task
+  const faces = [...new Set(Object.values(gestures))]
+  return html`<div class="swipe swipe-${kind}">
+    <div class="swipe-reveal" aria-hidden="true">
+      ${faces.map(
+        (action) =>
+          html`<span class="face" data-face=${action}>
+            ${icon(FACES[action])}<span>${faceLabel(view, ctx, action)}</span>
+          </span>`,
+      )}
+    </div>
+    ${task}
+  </div>`
+}
+
+function errorBadge(view: TaskView, ctx: TaskContext): TemplateResult | typeof nothing {
+  const error = ctx.tracker.error(view.task_id)
+  if (error === undefined) return nothing
+  const message = ctx.i18n.t('error_generic', { message: error })
+  return html`<span class="alert-badge" role="alert" aria-label=${message} title=${message}>
+    ${icon('alert')}
+  </span>`
 }
 
 export function renderRow(
@@ -253,16 +397,27 @@ export function renderRow(
   ctx: TaskContext,
   options: TaskOptions = {},
 ): TemplateResult {
-  return html`<div
-    class=${classes(view, ctx, 'row')}
+  const hide = options.hide ?? NOTHING_HIDDEN
+  const label = spokenLabel(view, ctx, hide)
+  const task = html`<div
+    class=${classes(view, ctx, `row ${hideClasses(view, ctx, hide)}`)}
     data-task=${view.task_id}
     data-status=${view.status}
     style=${styleMap(surface(view))}
+    role=${ifDefined(label ? 'group' : undefined)}
+    aria-label=${ifDefined(label)}
+    ${taskGestures(gestureOptions(view, ctx, options.gestures, 'row'))}
   >
     <div class="thumb">${scene(view, ctx)} ${iconBadge(view)}</div>
-    ${textBlock(view, ctx)} ${undoButton(view, ctx)}
-    ${actions(view, ctx, options.skip === true && !undoVisible(view, ctx))}
+    ${textBlock(view, ctx, hide)}
+    ${
+      hide.has('button')
+        ? burst(view, ctx)
+        : html`${undoButton(view, ctx)}
+          ${actions(view, ctx, options.skip === true && !undoVisible(view, ctx))}`
+    }
   </div>`
+  return hosted('row', view, ctx, options.gestures, task)
 }
 
 export function renderTile(
@@ -270,18 +425,102 @@ export function renderTile(
   ctx: TaskContext,
   options: TaskOptions = {},
 ): TemplateResult {
-  return html`<article
-    class=${classes(view, ctx, 'tile')}
+  const hide = options.hide ?? NOTHING_HIDDEN
+  const label = spokenLabel(view, ctx, hide)
+  const buttons = !hide.has('button')
+  const task = html`<article
+    class=${classes(view, ctx, `tile ${hideClasses(view, ctx, hide)}`)}
     data-task=${view.task_id}
     data-status=${view.status}
     style=${styleMap(surface(view))}
+    role=${ifDefined(label ? 'group' : undefined)}
+    aria-label=${ifDefined(label)}
+    ${taskGestures(gestureOptions(view, ctx, options.gestures, 'tile'))}
   >
-    <div class="art">${scene(view, ctx)} ${iconBadge(view)} ${undoButton(view, ctx)}</div>
-    ${textBlock(view, ctx)} ${actions(view, ctx, options.skip === true)}
+    <div class="art">
+      ${scene(view, ctx)} ${iconBadge(view)} ${buttons ? undoButton(view, ctx) : nothing}
+    </div>
+    ${textBlock(view, ctx, hide)}
+    ${buttons ? actions(view, ctx, options.skip === true) : burst(view, ctx)}
   </article>`
+  return hosted('tile', view, ctx, options.gestures, task)
 }
 
-export function renderSkeleton(count: number, kind: 'row' | 'tile'): TemplateResult[] {
+export function renderCompact(
+  view: TaskView,
+  ctx: TaskContext,
+  options: TaskOptions = {},
+): TemplateResult {
+  const hide = options.hide ?? effectiveHide('compact')
+  const failed = ctx.tracker.error(view.task_id) !== undefined
+  const task = html`<div
+    class=${classes(view, ctx, `compact ${hideClasses(view, ctx, hide)}`)}
+    data-task=${view.task_id}
+    data-status=${view.status}
+    style=${styleMap(surface(view))}
+    role="group"
+    aria-label=${ifDefined(spokenLabel(view, ctx, hide))}
+    ${taskGestures(gestureOptions(view, ctx, options.gestures, 'compact'))}
+  >
+    <div class="thumb">${scene(view, ctx)} ${iconBadge(view)}</div>
+    ${
+      failed
+        ? html`<div class="text">${dueLine(view, ctx)}</div>`
+        : hide.has('title')
+          ? nothing
+          : html`<div class="text"><div class="title">${view.title}</div></div>`
+    }
+    ${
+      hide.has('button')
+        ? burst(view, ctx)
+        : html`<div class="actions">
+            ${undoButton(view, ctx)}
+            <div class="go-wrap">${goButton(view, ctx, true)}${burst(view, ctx)}</div>
+          </div>`
+    }
+  </div>`
+  return hosted('compact', view, ctx, options.gestures, task)
+}
+
+function renderBare(
+  kind: 'picture' | 'bubble',
+  view: TaskView,
+  ctx: TaskContext,
+  options: TaskOptions,
+): TemplateResult {
+  const hide = options.hide ?? effectiveHide(kind === 'picture' ? 'picture' : 'bubbles')
+  const task = html`<div
+    class=${classes(view, ctx, `${kind} ${hideClasses(view, ctx, hide)}`)}
+    data-task=${view.task_id}
+    data-status=${view.status}
+    style=${styleMap(surface(view))}
+    role="group"
+    aria-label=${ifDefined(spokenLabel(view, ctx, hide))}
+    ${taskGestures(gestureOptions(view, ctx, options.gestures, kind))}
+  >
+    <div class="art">${scene(view, ctx)} ${iconBadge(view)}</div>
+    ${errorBadge(view, ctx)} ${burst(view, ctx)}
+  </div>`
+  return hosted(kind, view, ctx, options.gestures, task)
+}
+
+export function renderPicture(
+  view: TaskView,
+  ctx: TaskContext,
+  options: TaskOptions = {},
+): TemplateResult {
+  return renderBare('picture', view, ctx, options)
+}
+
+export function renderBubble(
+  view: TaskView,
+  ctx: TaskContext,
+  options: TaskOptions = {},
+): TemplateResult {
+  return renderBare('bubble', view, ctx, options)
+}
+
+export function renderSkeleton(count: number, kind: TaskKind): TemplateResult[] {
   return Array.from(
     { length: count },
     () => html`<div class="${kind} skeleton" aria-hidden="true"></div>`,
@@ -303,7 +542,10 @@ export const taskStyles = css`
   }
 
   .row,
-  .tile {
+  .tile,
+  .picture,
+  .compact,
+  .bubble {
     --ht-fg: #f4f2fa;
     --ht-muted: rgba(255, 255, 255, 0.74);
     --ht-divider: rgba(255, 255, 255, 0.28);
@@ -322,6 +564,40 @@ export const taskStyles = css`
     height: 68px;
     padding-right: 10px;
     background: linear-gradient(var(--ht-wall) 86%, var(--ht-floor) 86%);
+  }
+
+  .compact {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    padding-right: 4px;
+    background: linear-gradient(var(--ht-wall) 86%, var(--ht-floor) 86%);
+  }
+
+  .row.no-button {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .compact.no-button {
+    padding-right: 10px;
+  }
+
+  .row.no-text .actions {
+    grid-column: 3;
+  }
+
+  .picture {
+    width: 100%;
+    aspect-ratio: 1;
+  }
+
+  .bubble {
+    width: 72px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    corner-shape: round;
   }
 
   .thumb,
@@ -357,6 +633,70 @@ export const taskStyles = css`
     background: none;
   }
 
+  .compact .thumb {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    border-radius: calc(var(--ht-radius) * 1.3) 0 0 calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+    background: none;
+  }
+
+  .compact .text {
+    flex: 1;
+  }
+
+  .compact .title {
+    font-size: 1rem;
+  }
+
+  .compact .actions {
+    flex: none;
+    gap: 4px;
+    margin-inline-start: auto;
+  }
+
+  .compact .go-wrap {
+    flex: none;
+    width: 44px;
+  }
+
+  .compact .undo {
+    position: static;
+  }
+
+  .picture .art,
+  .bubble .art {
+    position: absolute;
+    inset: 0;
+    aspect-ratio: auto;
+    container-type: inline-size;
+    background: linear-gradient(var(--ht-wall) 86%, var(--ht-floor) 86%);
+  }
+
+  .picture .art {
+    border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+  }
+
+  .bubble .art {
+    border-radius: 50%;
+    corner-shape: round;
+  }
+
+  .tile.no-text {
+    grid-template-rows: auto auto;
+  }
+
+  .tile.no-button .text {
+    padding-bottom: 12px;
+  }
+
+  .tile.no-text.no-button .art {
+    border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+  }
+
   .badge {
     position: absolute;
     right: 3px;
@@ -378,6 +718,38 @@ export const taskStyles = css`
     width: 40px;
     height: 40px;
     --mdc-icon-size: 26px;
+  }
+
+  .picture .badge {
+    right: min(8px, 8cqi);
+    bottom: min(8px, 8cqi);
+    width: min(40px, 40cqi);
+    height: min(40px, 40cqi);
+    --mdc-icon-size: min(26px, 26cqi);
+  }
+
+  .bubble .badge {
+    right: auto;
+    bottom: min(6px, 8.5cqi);
+    left: calc(50% - min(16px, 22.5cqi));
+    width: min(32px, 45cqi);
+    height: min(32px, 45cqi);
+    --mdc-icon-size: min(20px, 28cqi);
+  }
+
+  .alert-badge {
+    position: absolute;
+    z-index: 2;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--ht-danger);
+    color: #ffffff;
   }
 
   .text {
@@ -414,6 +786,10 @@ export const taskStyles = css`
     position: relative;
     min-width: 0;
     max-width: 100%;
+  }
+
+  .meta > .when:first-child::before {
+    content: none;
   }
 
   .when::before {
@@ -533,6 +909,14 @@ export const taskStyles = css`
     text-overflow: ellipsis;
   }
 
+  .go.icon-only {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    corner-shape: round;
+  }
+
   .go.loud {
     background: var(--ht-task, var(--ht-accent));
     color: var(--ht-on-task, var(--ht-on-accent));
@@ -637,6 +1021,9 @@ export const taskStyles = css`
 
   .row.skeleton,
   .tile.skeleton,
+  .picture.skeleton,
+  .compact.skeleton,
+  .bubble.skeleton,
   .skeleton {
     background: var(--ht-surface-alt);
     opacity: 0.5;
@@ -644,6 +1031,153 @@ export const taskStyles = css`
 
   .tile.skeleton {
     height: 280px;
+  }
+
+  .swipe {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .swipe[data-active] {
+    overflow: hidden;
+  }
+
+  .swipe > [data-task] {
+    z-index: 1;
+    min-width: 0;
+  }
+
+  .swipe > [data-task]:focus-visible {
+    outline: 2px solid var(--ht-accent);
+    outline-offset: 2px;
+  }
+
+  .swipe-bubble {
+    width: 72px;
+    max-width: 100%;
+  }
+
+  .swipe-bubble > .bubble {
+    width: 100%;
+  }
+
+  .swipe-reveal {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .swipe-bubble > .swipe-reveal {
+    border-radius: 50%;
+    corner-shape: round;
+  }
+
+  .swipe-reveal[data-action='advance'] {
+    background: #2e9e6b;
+  }
+
+  .swipe-reveal[data-action='skip'] {
+    background: #f0a92e;
+    color: #14182a;
+  }
+
+  .swipe-reveal[data-action='undo'] {
+    background: #3a86e0;
+  }
+
+  .swipe-reveal[data-disabled] {
+    background: #6b7080;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .swipe-reveal[data-dir='right'] {
+    justify-content: flex-start;
+  }
+
+  .swipe-reveal[data-dir='left'] {
+    justify-content: flex-end;
+  }
+
+  .swipe-reveal[data-dir='down'] {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .swipe-reveal[data-dir='up'] {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .swipe-reveal[data-dir='press'],
+  .swipe-picture > .swipe-reveal,
+  .swipe-bubble > .swipe-reveal {
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+
+  .face {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .swipe-reveal[data-action='advance'] [data-face='advance'],
+  .swipe-reveal[data-action='skip'] [data-face='skip'],
+  .swipe-reveal[data-action='undo'] [data-face='undo'] {
+    display: inline-flex;
+  }
+
+  .swipe-picture .face,
+  .swipe-bubble .face {
+    flex-direction: column;
+    gap: 0;
+    font-size: 0.6875rem;
+  }
+
+  .swipe-reveal[data-armed] .ht-icon {
+    transform: scale(1.2);
+  }
+
+  .ring::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border-radius: calc(var(--ht-radius) * 1.3);
+    corner-shape: var(--ht-corner);
+    box-shadow: inset 0 0 0 3px #ffc857;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  .ring.is-overdue::after {
+    box-shadow: inset 0 0 0 3px #ff7a6b;
+  }
+
+  .bubble.ring::after {
+    border-radius: 50%;
+    corner-shape: round;
   }
 
   .burst {
@@ -714,13 +1248,31 @@ export const taskStyles = css`
       animation: ht-appear 0.2s steps(5) both;
     }
 
+    .ring-pulse::after {
+      animation: ht-ring 2.4s steps(24) infinite;
+    }
+
     .pop-done .thumb svg,
     .pop-done .art svg {
       animation: ht-pop 0.5s steps(10);
     }
 
-    .pop-stage .dots .now {
+    .pop-stage .dots .now,
+    .pop-stage.no-stage .thumb svg,
+    .pop-stage.no-stage .art svg {
       animation: ht-pop 0.5s steps(10);
+    }
+  }
+
+  @keyframes ht-ring {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.97);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 

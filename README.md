@@ -274,7 +274,7 @@ An occurrence always uses the cell of its own due date, so finishing early marks
 Add the **Housetide** card from the card picker and use the visual editor. Tick the tasks you want, in the order you want them. Tick nothing and you get all of them.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/editor.svg" alt="The card editor with a title, a layout choice, a today or all switch, a list of tasks to tick and an animations toggle, next to the card it produces and the YAML it saves" width="100%">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/editor.svg" alt="The card editor with a title, five layouts to pick from, columns, a Hide group, a Gestures group, a today or all switch, a list of tasks to tick and an animations toggle, next to the card it produces, the YAML it saves, a task mid-swipe and the same tasks as compact strips" width="100%">
 </p>
 
 Or write it by hand:
@@ -286,22 +286,71 @@ show: today
 layout: scenes
 ```
 
-| Option       | Default | Description                                                                  |
-| ------------ | ------- | ---------------------------------------------------------------------------- |
-| `tasks`      | all     | Task ids to show, in this order.                                             |
-| `show`       | `today` | `today` for today's tasks and freshly cleaned ones, `all` for all of them.   |
-| `layout`     | `list`  | `list` for compact strips, `scenes` for picture tiles.                       |
-| `columns`    | auto    | With `scenes`, a fixed 2, 3 or 4 tiles per row. Handy on narrow wall panels. |
-| `title`      | `Today` | The heading, translated when you leave it out.                               |
-| `animations` | `true`  | Set to `false` for low-powered wall tablets.                                 |
+| Option       | Default   | Description                                                                                                                           |
+| ------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `tasks`      | all       | Task ids to show, in this order.                                                                                                      |
+| `show`       | `today`   | `today` for today's tasks and freshly cleaned ones, `all` for all of them.                                                            |
+| `layout`     | `list`    | `list` for strips, `scenes` for picture tiles, and for small touch panels `picture`, `compact` or `bubbles`.                          |
+| `columns`    | auto      | With `scenes`, `picture` or `bubbles`, `auto` or a fixed 2 to 6 per row.                                                              |
+| `hide`       | nothing   | Any of `title`, `stage`, `due`, `button`, `header`.                                                                                   |
+| `gestures`   | by layout | Maps `tap`, `double_tap`, `long_press`, `swipe_left`, `swipe_right`, `swipe_up`, `swipe_down` to `advance`, `skip`, `undo` or `none`. |
+| `title`      | `Today`   | The heading, translated when you leave it out.                                                                                        |
+| `animations` | `true`    | Set to `false` for low-powered wall tablets.                                                                                          |
 
-## Both layouts
+## Five layouts
 
-Each task is drawn as one picture with its text and button on the scene. Strips are for walls with opinions about space. Tiles are for the rest of us.
+Each task is drawn as one picture. `scenes` and `list` put its text and button on that picture: strips are for walls with opinions about space, tiles are for the rest of us. The other three are for small touch panels, where you already know the laundry is the laundry.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/layouts.svg" alt="The same three tasks shown as picture tiles and as compact strips" width="100%">
+  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/layouts.svg" alt="The same three tasks in five layouts: picture tiles with text and a button, strips with text and a button, bare square scenes, slim strips with a title and an icon button, and round scenes" width="100%">
 </p>
+
+| Layout    | What you get                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------- |
+| `scenes`  | Picture tiles with the text and button under the scene.                                        |
+| `list`    | Strips with the scene, the text and a button.                                                  |
+| `picture` | Only the scene, as a square tile filling its cell, at least 96 pixels unless `columns` is set. |
+| `compact` | A strip 52 pixels tall: the scene, the title and a 44 pixel icon-only button.                  |
+| `bubbles` | Round scenes of about 72 pixels in a wrapping row, or centred in `columns` equal cells.        |
+
+### Hide what you already know
+
+`hide` takes away parts of a task: `title`, `stage`, `due`, `button`, and `header` for the heading row of the card. `picture` and `bubbles` have no text or buttons to begin with, and `compact` has no stage or due line, so those items do nothing there.
+
+A kitchen panel with no words on it at all:
+
+```yaml
+type: custom:housetide-card
+layout: picture
+columns: 4
+hide:
+  - header
+gestures:
+  double_tap: undo
+  long_press: none
+```
+
+For wordless tiles with a button, use `layout: scenes` with `hide: [title, stage, due]`. Keep the button or map some gestures, because `scenes` and `list` have none of their own. A task with all its text hidden gets a ring when it is due or overdue, soft and pulsing, or still with `animations: false`. Screen readers still get the title, stage and due text, and a failed action still tells you why.
+
+### Gestures
+
+Swipe a task and it follows your finger, with the action waiting behind it: green for advance, amber for skip, blue for undo, grey when that cannot happen right now. Let go past the smaller of 72 pixels and 35% of the width and it happens. Let go sooner and it springs back.
+
+| Gesture       | `list`, `scenes` | `picture`, `compact`, `bubbles` |
+| ------------- | ---------------- | ------------------------------- |
+| `tap`         | `none`           | `none`                          |
+| `double_tap`  | `none`           | `none`                          |
+| `long_press`  | `none`           | `undo`                          |
+| `swipe_left`  | `none`           | `skip`                          |
+| `swipe_right` | `none`           | `advance`                       |
+| `swipe_up`    | `none`           | `none`                          |
+| `swipe_down`  | `none`           | `none`                          |
+
+Those defaults only apply to `picture`, `compact` and `bubbles`. `list` and `scenes` do nothing with your fingers until you ask. A value in `gestures` replaces the default for that gesture, and `none` switches it off.
+
+An advance by gesture needs no confirming second press, so a swipe finishes a task that is not due yet. A press that starts on a real button still belongs to the button. Mapping `swipe_up` or `swipe_down` means a drag that starts on a task no longer scrolls the page, which is why neither is mapped out of the box.
+
+A task with gestures can also take keyboard focus. Enter runs the `tap` action, or advance when there is none, Delete skips and Backspace undoes, each only when that action is mapped to some gesture.
 
 ## The Pomodoro timer
 
@@ -421,6 +470,10 @@ English and Ukrainian, falling back to English. Dates and relative times follow 
 **I cannot edit a to-do item.** `todo.housetide` can only be ticked off. Everything else happens in the sidebar page. Ticking a chain moves it one step, and it comes back as the next step.
 
 **A scene is an empty room for a moment.** Each scene is fetched on its own when it comes within 200 pixels of the screen, and until it arrives you get its wall and floor. A failed fetch keeps the empty room and tries again 30 seconds later.
+
+**A swipe does nothing.** In `list` and `scenes` no gesture is mapped until you map one. Elsewhere, a grey layer means the action is not available right now: nothing to undo, for instance, or Home Assistant is out of reach.
+
+**The page will not scroll over a task.** You mapped `swipe_up` or `swipe_down`. A vertical drag on a task now belongs to the task, so scroll from the gap between tasks or map something else.
 
 **The scenes stopped moving.** Animation stops when `animations` is `false`, when the system asks for reduced motion, and when the page is hidden.
 

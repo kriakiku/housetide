@@ -12,8 +12,11 @@
 - **Make a scene yours.** Each task has a look: an accent colour from ten swatches or the colour picker, and a variant where the scene has one. The pet can be a dog. The laundry can be whites or darks.
 - **Templates and scenes in groups.** The template list and the scene picker share six headings, and each has a filter by name.
 - **Picture tiles and strips.** A task is now one picture, with its text and button drawn on the scene. The card has a `layout` option: `list` or `scenes`.
+- **Three layouts for small touch panels.** `picture` is only the scene, `compact` is a 52 pixel strip with a title and an icon button, and `bubbles` is a row of round scenes. `columns` goes from 2 to 6 and also works for `picture` and `bubbles`.
+- **Hide what you already know.** The `hide` option removes the title, stage, due text, buttons or the heading row. A task with all its text hidden gets a ring when it needs you, and screen readers still hear everything.
+- **Gestures.** The `gestures` option maps tap, double tap, long press and four swipes to advance, skip, undo or nothing. `picture`, `compact` and `bubbles` come with swipe right to advance, swipe left to skip and a long press to undo. `list` and `scenes` have no gestures until you add them. The task follows your finger with the action showing behind it, and letting go early springs it back.
 - **A layout switch on the Today tab** of the sidebar page. Each browser remembers its own choice.
-- **A visual card editor.** Title, layout, what to show, which tasks and in what order, animations. No YAML needed, though it still works.
+- **A visual card editor.** Title, layout, columns, what to hide, gestures, what to show, which tasks and in what order, animations. No YAML needed, though it still works.
 
 ### Changed
 

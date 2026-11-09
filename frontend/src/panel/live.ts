@@ -243,6 +243,10 @@ export class ActionTracker implements ReactiveController {
     return this.recent.get(id)?.key
   }
 
+  isCooling(id: string): boolean {
+    return (this.recent.get(id)?.coolUntil ?? 0) > Date.now()
+  }
+
   isArmed(id: string): boolean {
     return this.armed.has(id)
   }

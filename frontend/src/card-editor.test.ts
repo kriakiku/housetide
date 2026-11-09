@@ -166,6 +166,175 @@ describe('event payload', () => {
   })
 })
 
+function setSelect(editor: HousetideCardEditor, gesture: string, value: string): void {
+  const select = $(editor, `[data-gesture="${gesture}"]`)
+  if (!(select instanceof HTMLSelectElement)) throw new Error('not a select')
+  select.value = value
+  select.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+}
+
+function selectOf(editor: HousetideCardEditor, gesture: string): HTMLSelectElement {
+  const select = $(editor, `[data-gesture="${gesture}"]`)
+  if (!(select instanceof HTMLSelectElement)) throw new Error('not a select')
+  return select
+}
+
+describe('new layouts', () => {
+  for (const layout of ['picture', 'compact', 'bubbles'] as const) {
+    test(`${layout} can be chosen`, async () => {
+      const { editor, events } = await mount()
+      $(editor, `[data-layout="${layout}"]`).click()
+      await settle(editor)
+      expect(last(events)).toEqual({ layout })
+      expect($(editor, `[data-layout="${layout}"]`).getAttribute('aria-pressed')).toBe('true')
+    })
+  }
+
+  for (const layout of ['scenes', 'picture', 'bubbles'] as const) {
+    test(`columns are offered for ${layout} up to six`, async () => {
+      const { editor } = await mount({ layout })
+      expect(editor.shadowRoot?.querySelectorAll('[data-columns]')).toHaveLength(6)
+    })
+  }
+
+  test('compact has no columns', async () => {
+    const compact = await mount({ layout: 'compact' })
+    expect(compact.editor.shadowRoot?.querySelector('[data-columns]')).toBeNull()
+  })
+
+  test('picking six columns writes it, an explicit auto reads as Auto', async () => {
+    const { editor, events } = await mount({ layout: 'picture' })
+    $(editor, '[data-columns="6"]').click()
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'picture', columns: 6 })
+    const auto = await mount({ layout: 'picture', columns: 'auto' })
+    expect($(auto.editor, '[data-columns="auto"]').getAttribute('aria-pressed')).toBe('true')
+    $(auto.editor, '[data-columns="auto"]').click()
+    await settle(auto.editor)
+    expect(auto.events).toHaveLength(0)
+  })
+})
+
+describe('hide', () => {
+  async function toggle(editor: HousetideCardEditor, key: string, on: boolean): Promise<void> {
+    setChecked(field(editor, `[data-hide="${key}"]`), on)
+    await settle(editor)
+  }
+
+  test('writes in a stable order and removes the key when empty', async () => {
+    const { editor, events } = await mount()
+    await toggle(editor, 'header', true)
+    await toggle(editor, 'title', true)
+    expect(last(events)).toEqual({ hide: ['title', 'header'] })
+    await toggle(editor, 'title', false)
+    await toggle(editor, 'header', false)
+    expect(last(events)).toEqual({})
+  })
+
+  for (const layout of ['picture', 'bubbles'] as const) {
+    test(`${layout} only allows the header`, async () => {
+      const { editor } = await mount({ layout })
+      for (const key of ['title', 'stage', 'due', 'button']) {
+        expect(field(editor, `[data-hide="${key}"]`).disabled).toBe(true)
+        expect(field(editor, `[data-hide="${key}"]`).checked).toBe(true)
+      }
+      expect(field(editor, '[data-hide="header"]').disabled).toBe(false)
+      expect(field(editor, '[data-hide="header"]').checked).toBe(false)
+      expect($(editor, '[data-part="hide-hint"]').textContent?.length).toBeGreaterThan(0)
+    })
+  }
+
+  test('compact has no stage or timing to hide', async () => {
+    const { editor } = await mount({ layout: 'compact' })
+    expect(field(editor, '[data-hide="stage"]').disabled).toBe(true)
+    expect(field(editor, '[data-hide="due"]').disabled).toBe(true)
+    expect(field(editor, '[data-hide="title"]').disabled).toBe(false)
+    expect(field(editor, '[data-hide="button"]').disabled).toBe(false)
+  })
+
+  test('list has no explanation because everything counts', async () => {
+    const { editor } = await mount()
+    expect(editor.shadowRoot?.querySelector('[data-part="hide-hint"]')).toBeNull()
+  })
+
+  test('changing layout drops what the new layout already implies', async () => {
+    const { editor, events } = await mount({ hide: ['title', 'header'] })
+    $(editor, '[data-layout="picture"]').click()
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'picture', hide: ['header'] })
+  })
+})
+
+describe('gestures', () => {
+  test('one select per gesture shows the effective default', async () => {
+    const { editor } = await mount({ layout: 'compact' })
+    expect(editor.shadowRoot?.querySelectorAll('select[data-gesture]')).toHaveLength(7)
+    expect(selectOf(editor, 'swipe_right').value).toBe('advance')
+    expect(selectOf(editor, 'swipe_left').value).toBe('skip')
+    expect(selectOf(editor, 'long_press').value).toBe('undo')
+    expect(selectOf(editor, 'tap').value).toBe('none')
+    const marked = [...selectOf(editor, 'swipe_left').options].find((o) => o.value === 'skip')
+    expect(marked?.textContent).toContain('(default)')
+  })
+
+  test('list defaults to nothing', async () => {
+    const { editor } = await mount()
+    expect(selectOf(editor, 'swipe_right').value).toBe('none')
+  })
+
+  test('a config value overrides the shown default', async () => {
+    const { editor } = await mount({ layout: 'compact', gestures: { swipe_left: 'none' } })
+    expect(selectOf(editor, 'swipe_left').value).toBe('none')
+  })
+
+  test('writes overrides and never the default', async () => {
+    const { editor, events } = await mount({ layout: 'picture' })
+    setSelect(editor, 'swipe_left', 'none')
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'picture', gestures: { swipe_left: 'none' } })
+    setSelect(editor, 'tap', 'advance')
+    await settle(editor)
+    expect(last(events)).toEqual({
+      layout: 'picture',
+      gestures: { swipe_left: 'none', tap: 'advance' },
+    })
+    setSelect(editor, 'swipe_left', 'skip')
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'picture', gestures: { tap: 'advance' } })
+    setSelect(editor, 'tap', 'none')
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'picture' })
+  })
+
+  test('changing layout drops overrides equal to the new defaults', async () => {
+    const { editor, events } = await mount({ gestures: { swipe_right: 'advance', tap: 'skip' } })
+    $(editor, '[data-layout="bubbles"]').click()
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'bubbles', gestures: { tap: 'skip' } })
+  })
+
+  test('unknown keys survive gesture and hide edits', async () => {
+    const original: CardConfig & { custom: number } = { layout: 'compact', custom: 1 }
+    const { editor, events } = await mount(original)
+    setSelect(editor, 'swipe_up', 'undo')
+    await settle(editor)
+    setChecked(field(editor, '[data-hide="title"]'), true)
+    await settle(editor)
+    expect(last(events)).toEqual({
+      layout: 'compact',
+      custom: 1,
+      gestures: { swipe_up: 'undo' },
+      hide: ['title'],
+    } as CardConfig)
+  })
+
+  test('speaks Ukrainian', async () => {
+    const { editor } = await mount({ layout: 'picture' }, undefined, { language: 'uk' })
+    expect(editor.shadowRoot?.textContent).toContain('Жести')
+    expect(selectOf(editor, 'swipe_left').selectedOptions[0]?.textContent).toContain('типово')
+  })
+})
+
 describe('tidy yaml', () => {
   test('defaults are not written when absent', async () => {
     const { editor, events } = await mount()
@@ -320,7 +489,7 @@ describe('states', () => {
     expect(field(editor, '[data-field="title"]').value).toBe('Home')
     typeTitle(editor, 'Flat')
     expect(last(events)).toEqual({ tasks: ['a'], title: 'Flat' })
-    expect(editor.shadowRoot?.querySelectorAll('[data-layout]')).toHaveLength(2)
+    expect(editor.shadowRoot?.querySelectorAll('[data-layout]')).toHaveLength(5)
   })
 
   test('failure explains itself, keeps the selection, and can retry', async () => {
@@ -376,7 +545,7 @@ describe('contract', () => {
 
   test('layout choices preview real still scenes', async () => {
     const { editor } = await mount()
-    for (const layout of ['scenes', 'list']) {
+    for (const layout of ['scenes', 'list', 'picture', 'compact', 'bubbles']) {
       const button = $(editor, `[data-layout="${layout}"]`)
       expect(button.querySelectorAll('svg.ht-scene').length).toBeGreaterThan(0)
       expect(button.querySelector('.ht-animated')).toBeNull()

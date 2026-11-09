@@ -1246,7 +1246,7 @@ function dayCycle(only?: number, stillOffset?: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round">${box(0, 0, WIDTH, HEIGHT, 24)}</clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
 }
 
-type SceneSample = Omit<Sample, 'label'>
+type SceneSample = Omit<Sample, 'label'> & { progress?: number }
 
 const sampleView = (sample: SceneSample) =>
   ({ progress: 0.5, fill: 0, stink: 0, ...sample }) as never
@@ -1269,6 +1269,52 @@ function pictureTile(tile: Tile, x: number, y: number, width: number, id: string
   return `<clipPath id="${id}">${box(x, y, width, height, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${floor}"/>${layoutScene(tile.scene, x, y, width)}</g>${label(x + 10, y + art + 19, 15.5, '#f4f2fa', tile.title, 'font-weight="600"')}${label(x + 10, y + art + 37, 11.5, '#ffffff', `${tile.stage} · ${tile.status}`, 'opacity="0.76"')}${buttonMarkup(tile, x + 10, y + art + 43, width - 20)}`
 }
 
+const ICONS = {
+  check: 'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z',
+  skip: 'M16,18H18V6H16M6,18L14.5,12L6,6V18Z',
+  undo: 'M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z',
+}
+
+const iconMark = (name: keyof typeof ICONS, x: number, y: number, size: number, fill: string) =>
+  `<path transform="translate(${x} ${y}) scale(${size / 24})" d="${ICONS[name]}" fill="${fill}"/>`
+
+function wallAndFloor(sample: SceneSample, x: number, y: number, w: number, h: number): string {
+  const { wall, floor } = sceneSurface(sampleView(sample))
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h * 0.86}" fill="${wall}"/><rect x="${x}" y="${y + h * 0.86}" width="${w}" height="${h * 0.14}" fill="${floor}"/>`
+}
+
+function bareScene(
+  sample: SceneSample,
+  x: number,
+  y: number,
+  size: number,
+  id: string,
+  options: { round?: boolean; ring?: boolean; radius?: number } = {},
+): string {
+  const { round = false, ring = false, radius = 16 } = options
+  const clip = round
+    ? `<circle cx="${x + size / 2}" cy="${y + size / 2}" r="${size / 2}"/>`
+    : box(x, y, size, size, radius)
+  const stroke = 'fill="none" stroke="#ffc857" stroke-width="3" opacity="0.85"'
+  const halo = round
+    ? `<circle cx="${x + size / 2}" cy="${y + size / 2}" r="${size / 2 - 1.5}" ${stroke}/>`
+    : box(x + 1.5, y + 1.5, size - 3, size - 3, radius - 1.5, stroke)
+  return `<clipPath id="${id}">${clip}</clipPath><g clip-path="url(#${id})">${wallAndFloor(sample, x, y, size, size)}${layoutScene(sample, x, y + size * 0.02, size)}</g>${ring ? halo : ''}`
+}
+
+function compactStrip(tile: Tile, x: number, y: number, width: number, id: string): string {
+  const loud = tile.tone === 'loud'
+  const button = box(
+    x + width - 48,
+    y + 4,
+    44,
+    44,
+    12,
+    loud ? 'fill="#7f77dd"' : 'fill="#ffffff" fill-opacity="0.16"',
+  )
+  return `<clipPath id="${id}">${box(x, y, width, 52, 16)}</clipPath><g clip-path="url(#${id})">${wallAndFloor(tile.scene, x, y, width, 52)}${layoutScene(tile.scene, x, y + 1, 52)}</g>${label(x + 62, y + 32, 16, '#f4f2fa', tile.title, 'font-weight="600"')}${button}${iconMark('check', x + width - 37, y + 15, 22, loud ? '#ffffff' : '#f4f2fa')}`
+}
+
 function layoutsImage(): string {
   const washed = wash('waiting', 1, 0, 'Hang it up', 'Just finished', 'Hung up', 'loud')
   const tasks = [pillsDue, washed, plantLater]
@@ -1286,9 +1332,33 @@ function layoutsImage(): string {
       return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="${rowFloor}" fill="${wall}"/><rect x="${rowX}" y="${y + rowFloor}" width="${rowW}" height="${76 - rowFloor}" fill="${floor}"/>${layoutScene(tile.scene, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
     })
     .join('')
+  const titleY = 376
+  const top = titleY + 16
+  const pictures = tasks
+    .map((tile, index) =>
+      bareScene(tile.scene, 40 + index * 112, top, 104, `layout-picture-${index}`, {
+        ring: index === 0,
+      }),
+    )
+    .join('')
+  const compactX = 392
+  const strips = tasks
+    .map((tile, index) =>
+      compactStrip(tile, compactX, top + index * 60, 268, `layout-compact-${index}`),
+    )
+    .join('')
+  const bubblesX = 684
+  const bubbles = tasks
+    .map((tile, index) =>
+      bareScene(tile.scene, bubblesX + index * 82, top, 72, `layout-bubble-${index}`, {
+        round: true,
+        ring: index === 0,
+      }),
+    )
+    .join('')
   const width = 960
-  const height = 340
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same three tasks as picture tiles and as compact strips">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(40, 50, 'layout: scenes')}${heading(rowX, 50, 'layout: list')}${tiles}${rows}</svg>\n`
+  const height = top + 172 + 24
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same three tasks in the five card layouts: scenes, list, picture, compact and bubbles">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(40, 50, 'layout: scenes')}${heading(rowX, 50, 'layout: list')}${tiles}${rows}${heading(40, titleY, 'layout: picture')}${heading(compactX, titleY, 'layout: compact')}${heading(bubblesX, titleY, 'layout: bubbles')}${pictures}${strips}${bubbles}</svg>\n`
 }
 
 const EDITOR_INK = '#f2f0f8'
@@ -1301,17 +1371,32 @@ const EDITOR_PREVIEW: SceneSample[] = [
   { name: 'laundry', state: 'due', fill: 0.7 },
   { name: 'plant', state: 'resting', fill: 0.6 },
 ]
+const EDITOR_EXTRA: SceneSample = { name: 'generic', state: 'clean', progress: 1 }
 
-function miniBars(x: number, y: number, width: number): string {
-  return (
-    box(x, y, width * 0.7, 4, 2, 'fill="#fff" opacity="0.85"') +
-    box(x, y + 7, width * 0.45, 4, 2, 'fill="#fff" opacity="0.5"')
-  )
+type LayoutKind = 'scenes' | 'list' | 'picture' | 'compact' | 'bubbles'
+
+const LAYOUT_NAMES: Record<LayoutKind, string> = {
+  scenes: 'Scenes',
+  list: 'List',
+  picture: 'Picture',
+  compact: 'Compact',
+  bubbles: 'Bubbles',
 }
 
-function layoutOption(kind: 'scenes' | 'list', x: number, y: number, width: number): string {
-  const selected = kind === 'scenes'
+function miniBars(x: number, y: number, width: number, rows = 2): string {
+  const first = box(x, y, width * 0.7, 4, 2, 'fill="#fff" opacity="0.85"')
+  return rows === 1 ? first : first + box(x, y + 7, width * 0.45, 4, 2, 'fill="#fff" opacity="0.5"')
+}
+
+function layoutOption(
+  kind: LayoutKind,
+  x: number,
+  y: number,
+  width: number,
+  selected: boolean,
+): string {
   const inside = width - 20
+  const left = x + 10
   const shell = box(
     x + 1,
     y + 1,
@@ -1320,19 +1405,34 @@ function layoutOption(kind: 'scenes' | 'list', x: number, y: number, width: numb
     12,
     `fill="${EDITOR_FIELD}" stroke="${selected ? EDITOR_ACCENT : EDITOR_LINE}" stroke-width="2"`,
   )
-  const minis = EDITOR_PREVIEW.map((sample, index) => {
-    const id = `editor-mini-${kind}-${index}`
-    const { wall, floor } = sceneSurface(sampleView(sample))
-    if (kind === 'scenes') {
-      const miniW = (inside - 6) / 2
-      const miniX = x + 10 + index * (miniW + 6)
-      const miniH = miniW * 0.96 + 21
-      return `<clipPath id="${id}">${box(miniX, y + 12, miniW, miniH, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${miniX}" y="${y + 12}" width="${miniW}" height="${miniH}" fill="${floor}"/>${layoutScene(sample, miniX, y + 12, miniW)}</g>${miniBars(miniX + 6, y + 12 + miniW * 0.96 + 5, miniW - 12)}`
-    }
-    const miniY = y + 21 + index * 46
-    return `<clipPath id="${id}">${box(x + 10, miniY, inside, 40, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${x + 10}" y="${miniY}" width="${inside}" height="40" fill="${wall}"/>${layoutScene(sample, x + 10, miniY, 42)}</g>${miniBars(x + 58, miniY + 15, inside - 60)}`
-  }).join('')
-  return `${shell}${minis}${label(x + width / 2, y + 137, 14, EDITOR_INK, kind === 'scenes' ? 'Scenes' : 'List', 'text-anchor="middle" font-weight="500"')}`
+  const bare = kind === 'picture' || kind === 'bubbles'
+  const samples = bare ? [...EDITOR_PREVIEW, EDITOR_EXTRA] : EDITOR_PREVIEW
+  const minis = samples
+    .map((sample, index) => {
+      const id = `editor-mini-${kind}-${index}`
+      const { wall, floor } = sceneSurface(sampleView(sample))
+      if (kind === 'scenes') {
+        const miniW = (inside - 6) / 2
+        const miniX = left + index * (miniW + 6)
+        const miniH = miniW * 0.96 + 21
+        return `<clipPath id="${id}">${box(miniX, y + 12, miniW, miniH, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${miniX}" y="${y + 12}" width="${miniW}" height="${miniH}" fill="${floor}"/>${layoutScene(sample, miniX, y + 12, miniW)}</g>${miniBars(miniX + 6, y + 12 + miniW * 0.96 + 5, miniW - 12)}`
+      }
+      if (kind === 'list') {
+        const miniY = y + 21 + index * 46
+        return `<clipPath id="${id}">${box(left, miniY, inside, 40, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${left}" y="${miniY}" width="${inside}" height="40" fill="${wall}"/>${layoutScene(sample, left, miniY, 42)}</g>${miniBars(x + 58, miniY + 15, inside - 60)}`
+      }
+      if (kind === 'compact') {
+        const miniY = y + 35 + index * 32
+        return `<clipPath id="${id}">${box(left, miniY, inside, 26, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${left}" y="${miniY}" width="${inside}" height="26" fill="${wall}"/>${layoutScene(sample, left, miniY, 26)}</g>${miniBars(left + 34, miniY + 11, inside - 60, 1)}<circle cx="${left + inside - 12}" cy="${miniY + 13}" r="6" fill="#fff" opacity="0.85"/>`
+      }
+      const size = (inside - 12) / 3
+      return bareScene(sample, left + index * (size + 6), y + 12 + (104 - size) / 2, size, id, {
+        round: kind === 'bubbles',
+        radius: 7,
+      })
+    })
+    .join('')
+  return `${shell}${minis}${label(x + width / 2, y + 137, 14, EDITOR_INK, LAYOUT_NAMES[kind], 'text-anchor="middle" font-weight="500"')}`
 }
 
 function choiceButton(text: string, x: number, y: number, width: number, on: boolean): string {
@@ -1340,6 +1440,23 @@ function choiceButton(text: string, x: number, y: number, width: number, on: boo
     ? `fill="${EDITOR_ACCENT}"`
     : `fill="none" stroke="${EDITOR_LINE}" stroke-width="1"`
   return `${box(x, y, width, 44, 12, shape)}${label(x + width / 2, y + 27, 14, on ? '#ffffff' : EDITOR_INK, text, 'text-anchor="middle" font-weight="500"')}`
+}
+
+const tickMark = (x: number, y: number, stroke: string) =>
+  `<path d="M${x + 6} ${y + 12.5}l4.5 4.5 7.5-9" fill="none" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
+
+function checkbox(x: number, y: number, ticked: boolean, disabled = false): string {
+  if (!ticked) {
+    return box(
+      x + 0.5,
+      y + 0.5,
+      23,
+      23,
+      5,
+      `fill="none" stroke="${EDITOR_MUTED}" stroke-width="1.4"`,
+    )
+  }
+  return `${box(x, y, 24, 24, 5, `fill="${disabled ? EDITOR_LINE : EDITOR_ACCENT}"`)}${tickMark(x, y, disabled ? EDITOR_MUTED : '#fff')}`
 }
 
 function pickRow(
@@ -1351,18 +1468,55 @@ function pickRow(
   width: number,
   id: string,
 ): string {
-  const box24 = x + width - 36
-  const tick = ticked
-    ? `${box(box24, y + 16, 24, 24, 5, `fill="${EDITOR_ACCENT}"`)}<path d="M${box24 + 6} ${y + 28.5}l4.5 4.5 7.5-9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
-    : box(
-        box24 + 0.5,
-        y + 16.5,
-        23,
-        23,
-        5,
-        `fill="none" stroke="${EDITOR_MUTED}" stroke-width="1.4"`,
-      )
-  return `${box(x, y, width, 56, 8, `fill="${EDITOR_FIELD}"`)}<clipPath id="${id}">${box(x + 6, y + 6, 44, 44, 8)}</clipPath><g clip-path="url(#${id})">${layoutScene(sample, x + 6, y + 6, 45.9)}</g>${label(x + 62, y + 33, 15, EDITOR_INK, title)}${tick}`
+  return `${box(x, y, width, 56, 8, `fill="${EDITOR_FIELD}"`)}<clipPath id="${id}">${box(x + 6, y + 6, 44, 44, 8)}</clipPath><g clip-path="url(#${id})">${layoutScene(sample, x + 6, y + 6, 45.9)}</g>${label(x + 62, y + 33, 15, EDITOR_INK, title)}${checkbox(x + width - 36, y + 16, ticked)}`
+}
+
+function hideCheck(text: string, x: number, y: number, on: boolean, off: boolean): string {
+  return `${checkbox(x, y + 10, on, off)}${label(x + 34, y + 27, 15, off ? EDITOR_MUTED : EDITOR_INK, text)}`
+}
+
+function gestureSelect(name: string, value: string, x: number, y: number, width: number): string {
+  const chevronX = x + width - 22
+  return `${label(x, y + 14, 14, EDITOR_MUTED, name)}${box(x, y + 22, width, 44, 8, `fill="${EDITOR_FIELD}" stroke="${EDITOR_LINE}" stroke-width="1"`)}${label(x + 12, y + 49, 15, EDITOR_INK, value)}<path d="M${chevronX} ${y + 41}l5 5 5-5" fill="none" stroke="${EDITOR_MUTED}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`
+}
+
+interface SwipeRow {
+  tile: Tile
+  action: 'advance' | 'skip' | 'undo'
+  name: string
+  dx: number
+  dy: number
+  title: string
+  lines: [string, string]
+  disabled?: boolean
+}
+
+const SWIPE_COLORS = {
+  advance: ['#2e9e6b', '#ffffff'],
+  skip: ['#f0a92e', '#14182a'],
+  undo: ['#3a86e0', '#ffffff'],
+} as const
+
+const SWIPE_ICON = { advance: 'check', skip: 'skip', undo: 'undo' } as const
+
+function swipeRow(row: SwipeRow, x: number, y: number, index: number): string {
+  const size = 140
+  const [background, ink] = row.disabled ? ['#6b7080', '#c4c6cf'] : SWIPE_COLORS[row.action]
+  const layer = box(x, y, size, size, 16, `fill="${background}"`)
+  const center = x + size / 2
+  const mark = iconMark(SWIPE_ICON[row.action], center - 13, y + size / 2 - 22, 26, ink)
+  const name = label(
+    center,
+    y + size / 2 + 24,
+    13,
+    ink,
+    row.name,
+    'text-anchor="middle" font-weight="700"',
+  )
+  const moved = `<g opacity="0.25">${bareScene(row.tile.scene, x + row.dx, y + row.dy, size, `editor-swipe-${index}`)}</g>`
+  const textX = x + size + 56
+  const textY = y + size / 2 - 24
+  return `${layer}${mark}${name}${moved}${label(textX, textY, 15, EDITOR_INK, row.title, 'font-weight="600"')}${label(textX, textY + 22, 13, EDITOR_MUTED, row.lines[0])}${label(textX, textY + 40, 13, EDITOR_MUTED, row.lines[1])}`
 }
 
 function editorImage(): string {
@@ -1399,11 +1553,72 @@ function editorImage(): string {
   )
   y += 64
   title('Layout')
+  const kinds: LayoutKind[] = ['scenes', 'list', 'picture', 'compact', 'bubbles']
+  kinds.forEach((kind, index) => {
+    controls.push(
+      layoutOption(
+        kind,
+        inner + (index % 2) * (optionW + 12),
+        y + Math.floor(index / 2) * 162,
+        optionW,
+        kind === 'picture',
+      ),
+    )
+  })
+  y += 162 * 2 + 150 + 20
+
+  title('Columns')
+  const columnW = (innerW - 74 - 30) / 5
+  controls.push(choiceButton('Auto', inner, y, 74, false))
+  ;[2, 3, 4, 5, 6].forEach((count, index) => {
+    controls.push(
+      choiceButton(String(count), inner + 80 + index * (columnW + 6), y, columnW, count === 2),
+    )
+  })
+  y += 64
+
+  title('Hide')
+  const hideW = (innerW - 12) / 2
+  ;['Title', 'Stage', 'Timing', 'Buttons', 'Heading row'].forEach((name, index) => {
+    const off = index < 4
+    controls.push(
+      hideCheck(name, inner + (index % 2) * (hideW + 12), y + Math.floor(index / 2) * 48, off, off),
+    )
+  })
+  y += 48 * 2 + 44 + 8
   controls.push(
-    layoutOption('scenes', inner, y, optionW),
-    layoutOption('list', inner + optionW + 12, y, optionW),
+    label(inner, y + 11, 13, EDITOR_MUTED, 'This layout is only the picture, so its text and'),
+    label(inner, y + 29, 13, EDITOR_MUTED, 'buttons are always hidden.'),
   )
-  y += 172
+  y += 56
+
+  title('Gestures')
+  controls.push(
+    label(inner, y + 11, 13, EDITOR_MUTED, 'What a touch or a mouse drag on a task does.'),
+  )
+  y += 26
+  const gestures: ReadonlyArray<readonly [string, string]> = [
+    ['Tap', 'Nothing (default)'],
+    ['Double tap', 'Nothing (default)'],
+    ['Long press', 'Nothing'],
+    ['Swipe left', 'Skip (default)'],
+    ['Swipe right', 'Advance (default)'],
+    ['Swipe up', 'Undo'],
+    ['Swipe down', 'Nothing (default)'],
+  ]
+  gestures.forEach(([name, value], index) => {
+    controls.push(
+      gestureSelect(
+        name,
+        value,
+        inner + (index % 2) * (hideW + 12),
+        y + Math.floor(index / 2) * 74,
+        hideW,
+      ),
+    )
+  })
+  y += 74 * 3 + 66 + 20
+
   title('Show')
   controls.push(
     choiceButton('Today', inner, y, innerW * 0.477, true),
@@ -1439,25 +1654,32 @@ function editorImage(): string {
 
   const cardX = left + panelW + 24
   const cardW = width - 24 - cardX
-  const tileW = (cardW - 32 - 10) / 2
-  const tileH = pictureHeight(tileW)
-  const cardH = 48 + tileH * 2 + 10 + 16
+  const tileSize = (cardW - 32 - 8) / 2
+  const cardH = 48 + tileSize * 2 + 8 + 16
+  const header = (y0: number) =>
+    `${label(cardX + 16, y0 + 31, 20, EDITOR_INK, 'Home', 'font-weight="600"')}${label(cardX + cardW - 16, y0 + 31, 14, EDITOR_MUTED, '2 tasks due', 'text-anchor="end"')}`
   const tiles = shown
     .map((tile, index) =>
-      pictureTile(
-        tile,
-        cardX + 16 + (index % 2) * (tileW + 10),
-        top + 48 + Math.floor(index / 2) * (tileH + 10),
-        tileW,
+      bareScene(
+        tile.scene,
+        cardX + 16 + (index % 2) * (tileSize + 8),
+        top + 48 + Math.floor(index / 2) * (tileSize + 8),
+        tileSize,
         `editor-tile-${index}`,
+        { ring: tile.tone === 'loud' && tile.scene.state === 'due' },
       ),
     )
     .join('')
+
   const yamlTop = top + cardH + 38
   const yamlLines = [
     ['type', 'custom:housetide-card'],
     ['title', 'Home'],
-    ['layout', 'scenes'],
+    ['layout', 'picture'],
+    ['columns', '2'],
+    ['gestures', ''],
+    ['  long_press', 'none'],
+    ['  swipe_up', 'undo'],
     ['tasks', ''],
     ['', '9f2c41d8e7…'],
     ['', '4be07a13c5…'],
@@ -1472,8 +1694,74 @@ function editorImage(): string {
       return `<text x="${cardX + 16}" y="${yamlTop + 24 + index * 17}" font-size="13.5" font-family="${MONO}" xml:space="preserve">${text}</text>`
     })
     .join('')
+  const yamlH = 24 + (yamlLines.length - 1) * 17 + 16
+
+  const compactH = 48 + 4 * 52 + 3 * 8 + 16
+  const compactTop = bottom - compactH
+  const compacts = shown
+    .map((tile, index) =>
+      compactStrip(
+        tile,
+        cardX + 16,
+        compactTop + 48 + index * 60,
+        cardW - 32,
+        `editor-compact-${index}`,
+      ),
+    )
+    .join('')
+
+  const swipeTop = yamlTop + yamlH + 38
+  const swipeH = compactTop - 38 - swipeTop
+  const rows: SwipeRow[] = [
+    {
+      tile: pillsDue,
+      action: 'advance',
+      name: 'Advance',
+      dx: 44,
+      dy: 0,
+      title: 'Swipe right',
+      lines: ['Advance, by default. No', 'second press, even early.'],
+    },
+    {
+      tile: washed,
+      action: 'skip',
+      name: 'Skip',
+      dx: -44,
+      dy: 0,
+      title: 'Swipe left',
+      lines: ['Skip, by default. Let go', 'early and it springs back.'],
+    },
+    {
+      tile: plantLater,
+      action: 'undo',
+      name: 'Undo',
+      dx: 0,
+      dy: -34,
+      title: 'Swipe up',
+      lines: ['Undo, because the YAML', 'says so.'],
+    },
+    {
+      tile: plantDone,
+      action: 'advance',
+      name: 'Advance',
+      dx: 44,
+      dy: 0,
+      title: 'Not available',
+      lines: ['Grey means it cannot', 'happen now. It springs back.'],
+      disabled: true,
+    },
+  ]
+  const rowH = (swipeH - 16) / rows.length
+  const swipes = rows
+    .map((row, index) => {
+      const rowTop = swipeTop + 8 + index * rowH
+      const lift = row.dy < 0 ? -row.dy / 2 : 0
+      return swipeRow(row, cardX + 56, rowTop + (rowH - 140) / 2 + lift, index)
+    })
+    .join('')
+
   const height = bottom + 24
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The Housetide card editor next to the card it configures">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(left, 50, 'visual editor')}${heading(cardX, 50, 'the card')}${box(left, top, panelW, panelH, 14, `fill="${EDITOR_PANEL}"`)}${controls.join('')}${box(cardX, top, cardW, cardH, 14, `fill="${EDITOR_PANEL}"`)}${label(cardX + 16, top + 31, 20, EDITOR_INK, 'Home', 'font-weight="600"')}${label(cardX + cardW - 16, top + 31, 14, EDITOR_MUTED, '3 tasks due', 'text-anchor="end"')}${tiles}${heading(cardX, yamlTop - 12, 'what it saves')}${box(cardX, yamlTop, cardW, bottom - yamlTop, 14, 'fill="#14131b"')}${yaml}</svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The Housetide card editor next to the card it configures, the YAML it saves, how a swipe looks and the same tasks as compact strips">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(left, 50, 'visual editor')}${heading(cardX, 50, 'the card')}${box(left, top, panelW, panelH, 14, `fill="${EDITOR_PANEL}"`)}${controls.join('')}${box(cardX, top, cardW, cardH, 14, `fill="${EDITOR_PANEL}"`)}${header(top)}${tiles}${heading(cardX, yamlTop - 12, 'what it saves')}${box(cardX, yamlTop, cardW, yamlH, 14, 'fill="#14131b"')}${yaml}${heading(cardX, swipeTop - 12, 'a swipe, just before it lands')}${box(cardX, swipeTop, cardW, swipeH, 14, `fill="${EDITOR_PANEL}"`)}${swipes}${heading(cardX, compactTop - 12, 'one word later: layout: compact')}${box(cardX, compactTop, cardW, compactH, 14, `fill="${EDITOR_PANEL}"`)}${header(compactTop)}${compacts}</svg>\n`
 }
 
 const LOOK_SIZE = 160
