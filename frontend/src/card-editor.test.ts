@@ -119,6 +119,20 @@ describe('event payload', () => {
     expect($(editor, '[data-layout="list"]').getAttribute('aria-pressed')).toBe('false')
   })
 
+  test('columns are offered for tiles only, and Auto removes the key', async () => {
+    const { editor, events } = await mount({ layout: 'scenes' })
+    $(editor, '[data-columns="2"]').click()
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'scenes', columns: 2 })
+    expect($(editor, '[data-columns="2"]').getAttribute('aria-pressed')).toBe('true')
+    $(editor, '[data-columns="auto"]').click()
+    await settle(editor)
+    expect(last(events)).toEqual({ layout: 'scenes' })
+    $(editor, '[data-layout="list"]').click()
+    await settle(editor)
+    expect(editor.shadowRoot?.querySelector('[data-columns]')).toBeNull()
+  })
+
   test('show', async () => {
     const { editor, events } = await mount()
     $(editor, '[data-show="all"]').click()

@@ -286,13 +286,14 @@ show: today
 layout: scenes
 ```
 
-| Option       | Default | Description                                                                |
-| ------------ | ------- | -------------------------------------------------------------------------- |
-| `tasks`      | all     | Task ids to show, in this order.                                           |
-| `show`       | `today` | `today` for today's tasks and freshly cleaned ones, `all` for all of them. |
-| `layout`     | `list`  | `list` for compact strips, `scenes` for picture tiles.                     |
-| `title`      | `Today` | The heading, translated when you leave it out.                             |
-| `animations` | `true`  | Set to `false` for low-powered wall tablets.                               |
+| Option       | Default | Description                                                                  |
+| ------------ | ------- | ---------------------------------------------------------------------------- |
+| `tasks`      | all     | Task ids to show, in this order.                                             |
+| `show`       | `today` | `today` for today's tasks and freshly cleaned ones, `all` for all of them.   |
+| `layout`     | `list`  | `list` for compact strips, `scenes` for picture tiles.                       |
+| `columns`    | auto    | With `scenes`, a fixed 2, 3 or 4 tiles per row. Handy on narrow wall panels. |
+| `title`      | `Today` | The heading, translated when you leave it out.                               |
+| `animations` | `true`  | Set to `false` for low-powered wall tablets.                                 |
 
 ## Both layouts
 

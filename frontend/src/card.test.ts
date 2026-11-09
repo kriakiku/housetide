@@ -128,6 +128,23 @@ describe('icons', () => {
   })
 })
 
+describe('columns', () => {
+  test('a fixed count sets the tile grid', async () => {
+    const { card } = await withState(payload([view('due')]), {
+      show: 'all',
+      layout: 'scenes',
+      columns: 2,
+    })
+    expect($(card, '.tiles').className).toContain('columns-2')
+  })
+
+  test('an unsupported count is rejected', () => {
+    expect(() => {
+      new HousetideCard().setConfig({ columns: 7 })
+    }).toThrow()
+  })
+})
+
 describe('rows are stable', () => {
   test('height is fixed in css', () => {
     const text = HousetideCard.styles.map((sheet) => sheet.cssText).join('')

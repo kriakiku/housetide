@@ -33,6 +33,7 @@ export interface CardConfig {
   tasks?: string[]
   show?: 'today' | 'all'
   layout?: 'list' | 'scenes'
+  columns?: number
   title?: string
   animations?: boolean
 }
@@ -43,6 +44,9 @@ export function assertCardConfig(config: CardConfig): void {
   }
   if (config.layout !== undefined && config.layout !== 'list' && config.layout !== 'scenes') {
     throw new Error('layout must be "list" or "scenes"')
+  }
+  if (config.columns !== undefined && ![2, 3, 4].includes(config.columns)) {
+    throw new Error('columns must be 2, 3 or 4')
   }
   if (config.tasks !== undefined && !Array.isArray(config.tasks)) {
     throw new Error('tasks must be a list of task ids')
@@ -99,6 +103,18 @@ export class HousetideCard extends LitElement {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
         gap: 10px;
+      }
+
+      .tiles.columns-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .tiles.columns-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .tiles.columns-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
       .empty {
@@ -222,7 +238,7 @@ export class HousetideCard extends LitElement {
     }
     if (!state) {
       return html`<div
-        class=${scenes ? 'tiles' : 'list'}
+        class=${this.gridClass(scenes)}
         aria-busy="true"
         aria-label=${i18n.t('card_loading')}
       >
@@ -232,13 +248,18 @@ export class HousetideCard extends LitElement {
     const views = this.views()
     if (views.length === 0) return this.empty(i18n)
     const ctx = this.context(hass, i18n)
-    return html`<div class=${scenes ? 'tiles' : 'list'}>
+    return html`<div class=${this.gridClass(scenes)}>
       ${repeat(
         views,
         (view) => view.task_id,
         (view) => (scenes ? renderTile(view, ctx) : renderRow(view, ctx)),
       )}
     </div>`
+  }
+
+  private gridClass(scenes: boolean): string {
+    if (!scenes) return 'list'
+    return this.config.columns ? `tiles columns-${this.config.columns}` : 'tiles'
   }
 
   private empty(i18n: I18n): TemplateResult {

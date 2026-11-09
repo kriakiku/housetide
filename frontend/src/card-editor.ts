@@ -389,6 +389,37 @@ export class HousetideCardEditor extends LitElement {
     )
   }
 
+  private chooseColumns(columns: number | undefined): void {
+    const { config } = this
+    if (config.columns === columns) return
+    const { columns: _previous, ...rest } = config
+    this.commit(columns === undefined ? rest : { ...config, columns })
+  }
+
+  private columnsSection(i18n: I18n): TemplateResult | typeof nothing {
+    if ((this.config.layout ?? DEFAULTS.layout) !== 'scenes') return nothing
+    const current = this.config.columns
+    const option = (value: number | undefined, label: string): TemplateResult =>
+      html`<button
+        type="button"
+        class="ht-btn segment"
+        data-columns=${value ?? 'auto'}
+        aria-pressed=${current === value ? 'true' : 'false'}
+        @click=${(): void => {
+          this.chooseColumns(value)
+        }}
+      >
+        ${label}
+      </button>`
+    return html`<section>
+      <h3>${i18n.t('config_columns')}</h3>
+      <div class="segments" role="group" aria-label=${i18n.t('config_columns')}>
+        ${option(undefined, i18n.t('config_columns_auto'))} ${option(2, '2')} ${option(3, '3')}
+        ${option(4, '4')}
+      </div>
+    </section>`
+  }
+
   private choose<K extends keyof typeof DEFAULTS>(key: K, value: NonNullable<CardConfig[K]>): void {
     const { config } = this
     if (Object.hasOwn(config, key) ? config[key] === value : value === DEFAULTS[key]) return
@@ -535,6 +566,7 @@ export class HousetideCardEditor extends LitElement {
           )}
         </div>
       </section>
+      ${this.columnsSection(i18n)}
       <section>
         <h3>${i18n.t('config_show')}</h3>
         <div class="segments" role="group" aria-label=${i18n.t('config_show')}>
