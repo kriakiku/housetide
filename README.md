@@ -49,11 +49,7 @@ Regretted it? A small undo button appears right after.
 
 ## The cast
 
-Thirty-seven scenes, one job each: make you feel something about your household.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/cast.svg" alt="Thirty-seven scenes in a grid, each with a short caption: a smelly laundry basket, a fresh bed, a filthy sink, a bin plotting an escape, an overgrown lawn, a hungry cat, a dying plant, a pill pack, a rusting barbell, a mosquito-ridden pool, a car under a vulture, a grumpy parrot, a laptop full of bugs, slides on fire, a moth-eaten book, angry bills, a phone covered in cobwebs, a tide in a porthole and, alone in the last row, an owl with a butter knife" width="100%">
-</p>
+Thirty-seven scenes, one job each: make you feel something about your household. Each one plays through its whole life in [the templates table](#the-templates): building up, going badly, getting done, sparkling.
 
 And the star of the show has its own album.
 
@@ -80,70 +76,70 @@ Every template comes with a scene, and any task can wear any scene. They are gro
 
 **Home**
 
-| Template                 | Scene        | Repeats                | If missed       | Steps                                 |
-| ------------------------ | ------------ | ---------------------- | --------------- | ------------------------------------- |
-| Laundry                  | Laundry      | Every 7 days at 10:00  | Keep it overdue | Collect and load, Washing, Hang it up |
-| Change the sheets        | Bed          | Every 14 days at 10:00 | Keep it overdue | Change the sheets                     |
-| Do the dishes            | Dishes       | Daily at 20:00         | Keep it overdue | Wash up                               |
-| Take out the trash       | Trash        | Every 3 days at 19:00  | Keep it overdue | Take it out                           |
-| Vacuum                   | Vacuum       | Every 7 days at 11:00  | Keep it overdue | Vacuum the floor                      |
-| Clean the bathroom       | Bathroom     | Every 7 days at 11:00  | Keep it overdue | Scrub it                              |
-| Tidy the fridge          | Fridge       | Every 30 days at 11:00 | Keep it overdue | Clear it out                          |
-| Wash the windows         | Windows      | Every 90 days at 11:00 | Keep it overdue | Wash the glass                        |
-| Order water bottles      | Water cooler | Every 14 days at 10:00 | Keep it overdue | Order bottles, Waiting for delivery   |
-| Replace the water filter | Water filter | Every 90 days at 10:00 | Keep it overdue | Replace it                            |
-| Mow the lawn             | Lawn         | Every 14 days at 11:00 | Keep it overdue | Mow                                   |
+|                                                                                                                            | Template                     | Repeats                | If missed       | Steps                                 |
+| :------------------------------------------------------------------------------------------------------------------------: | ---------------------------- | ---------------------- | --------------- | ------------------------------------- |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/laundry.svg" alt="Laundry" width="96">   | **Laundry**                  | Every 7 days at 10:00  | Keep it overdue | Collect and load, Washing, Hang it up |
+|       <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/bed.svg" alt="Bed" width="96">       | **Change the sheets**        | Every 14 days at 10:00 | Keep it overdue | Change the sheets                     |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/dishes.svg" alt="Dishes" width="96">    | **Do the dishes**            | Daily at 20:00         | Keep it overdue | Wash up                               |
+|     <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/trash.svg" alt="Trash" width="96">     | **Take out the trash**       | Every 3 days at 19:00  | Keep it overdue | Take it out                           |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/vacuum.svg" alt="Vacuum" width="96">    | **Vacuum**                   | Every 7 days at 11:00  | Keep it overdue | Vacuum the floor                      |
+|  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/bathroom.svg" alt="Bathroom" width="96">  | **Clean the bathroom**       | Every 7 days at 11:00  | Keep it overdue | Scrub it                              |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/fridge.svg" alt="Fridge" width="96">    | **Tidy the fridge**          | Every 30 days at 11:00 | Keep it overdue | Clear it out                          |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/window.svg" alt="Windows" width="96">    | **Wash the windows**         | Every 90 days at 11:00 | Keep it overdue | Wash the glass                        |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/cooler.svg" alt="Water cooler" width="96"> | **Order water bottles**      | Every 14 days at 10:00 | Keep it overdue | Order bottles, Waiting for delivery   |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/filter.svg" alt="Water filter" width="96"> | **Replace the water filter** | Every 90 days at 10:00 | Keep it overdue | Replace it                            |
+|      <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/lawn.svg" alt="Lawn" width="96">      | **Mow the lawn**             | Every 14 days at 11:00 | Keep it overdue | Mow                                   |
 
 **Pets and plants**
 
-| Template        | Scene | Repeats               | If missed        | Steps |
-| --------------- | ----- | --------------------- | ---------------- | ----- |
-| Feed the cat    | Pet   | Daily at 08:00        | Skip to the next | Feed  |
-| Water the plant | Plant | Every 7 days at 10:00 | Keep it overdue  | Water |
+|                                                                                                                    | Template            | Repeats               | If missed        | Steps |
+| :----------------------------------------------------------------------------------------------------------------: | ------------------- | --------------------- | ---------------- | ----- |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/pet.svg" alt="Pet" width="96">   | **Feed the cat**    | Daily at 08:00        | Skip to the next | Feed  |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/plant.svg" alt="Plant" width="96"> | **Water the plant** | Every 7 days at 10:00 | Keep it overdue  | Water |
 
 **Health**
 
-| Template         | Scene   | Repeats                | If missed        | Steps      |
-| ---------------- | ------- | ---------------------- | ---------------- | ---------- |
-| Pills            | Pills   | Daily at 08:00         | Skip to the next | Take pills |
-| Brush your teeth | Teeth   | Daily at 21:00         | Skip to the next | Brush      |
-| Drink some water | Water   | Daily at 11:00         | Skip to the next | Drink      |
-| Go to the gym    | Gym     | Mon, Wed, Fri at 18:00 | Skip to the next | Work out   |
-| Go swimming      | Pool    | Tue, Sat at 18:00      | Skip to the next | Swim       |
-| Do yoga          | Yoga    | Daily at 07:30         | Skip to the next | Stretch    |
-| Go for a run     | Running | Tue, Thu, Sat at 07:00 | Skip to the next | Run        |
+|                                                                                                                    | Template             | Repeats                | If missed        | Steps      |
+| :----------------------------------------------------------------------------------------------------------------: | -------------------- | ---------------------- | ---------------- | ---------- |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/pills.svg" alt="Pills" width="96"> | **Pills**            | Daily at 08:00         | Skip to the next | Take pills |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/teeth.svg" alt="Teeth" width="96"> | **Brush your teeth** | Daily at 21:00         | Skip to the next | Brush      |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/water.svg" alt="Water" width="96"> | **Drink some water** | Daily at 11:00         | Skip to the next | Drink      |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/gym.svg" alt="Gym" width="96">   | **Go to the gym**    | Mon, Wed, Fri at 18:00 | Skip to the next | Work out   |
+|  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/pool.svg" alt="Pool" width="96">  | **Go swimming**      | Tue, Sat at 18:00      | Skip to the next | Swim       |
+|  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/yoga.svg" alt="Yoga" width="96">  | **Do yoga**          | Daily at 07:30         | Skip to the next | Stretch    |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/run.svg" alt="Running" width="96"> | **Go for a run**     | Tue, Thu, Sat at 07:00 | Skip to the next | Run        |
 
 **Car**
 
-| Template        | Scene        | Repeats                | If missed       | Steps                |
-| --------------- | ------------ | ---------------------- | --------------- | -------------------- |
-| Charge the car  | Electric car | Every 7 days at 20:00  | Keep it overdue | Plug it in, Charging |
-| Fill up the car | Fuel         | Every 14 days at 18:00 | Keep it overdue | Fill up              |
-| Wash the car    | Car wash     | Every 30 days at 11:00 | Keep it overdue | Wash                 |
+|                                                                                                                         | Template            | Repeats                | If missed       | Steps                |
+| :---------------------------------------------------------------------------------------------------------------------: | ------------------- | ---------------------- | --------------- | -------------------- |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/ev.svg" alt="Electric car" width="96">  | **Charge the car**  | Every 7 days at 20:00  | Keep it overdue | Plug it in, Charging |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/fuel.svg" alt="Fuel" width="96">     | **Fill up the car** | Every 14 days at 18:00 | Keep it overdue | Fill up              |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/carwash.svg" alt="Car wash" width="96"> | **Wash the car**    | Every 30 days at 11:00 | Keep it overdue | Wash                 |
 
 **Learning and work**
 
-| Template                 | Scene        | Repeats                       | If missed        | Steps                      |
-| ------------------------ | ------------ | ----------------------------- | ---------------- | -------------------------- |
-| Study                    | Study        | Mon to Fri at 19:00           | Skip to the next | Study                      |
-| Practise a language      | Language     | Daily at 09:00                | Skip to the next | Practise                   |
-| Learn to code            | Coding       | Tue, Thu at 20:00             | Skip to the next | Code                       |
-| Prepare the presentation | Presentation | Once, tomorrow at 09:00       | Keep it overdue  | Draft the slides, Rehearse |
-| Read a book              | Book         | Daily at 21:30                | Skip to the next | Read                       |
-| Back up the computer     | Backup       | Every 30 days at 20:00, fixed | Keep it overdue  | Back up                    |
+|                                                                                                                            | Template                     | Repeats                       | If missed        | Steps                      |
+| :------------------------------------------------------------------------------------------------------------------------: | ---------------------------- | ----------------------------- | ---------------- | -------------------------- |
+|     <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/study.svg" alt="Study" width="96">     | **Study**                    | Mon to Fri at 19:00           | Skip to the next | Study                      |
+|  <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/language.svg" alt="Language" width="96">  | **Practise a language**      | Daily at 09:00                | Skip to the next | Practise                   |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/coding.svg" alt="Coding" width="96">    | **Learn to code**            | Tue, Thu at 20:00             | Skip to the next | Code                       |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/slides.svg" alt="Presentation" width="96"> | **Prepare the presentation** | Once, tomorrow at 09:00       | Keep it overdue  | Draft the slides, Rehearse |
+|      <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/book.svg" alt="Book" width="96">      | **Read a book**              | Daily at 21:30                | Skip to the next | Read                       |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/backup.svg" alt="Backup" width="96">    | **Back up the computer**     | Every 30 days at 20:00, fixed | Keep it overdue  | Back up                    |
 
 **Life**
 
-| Template               | Scene     | Repeats                       | If missed        | Steps                      |
-| ---------------------- | --------- | ----------------------------- | ---------------- | -------------------------- |
-| Buy groceries          | Groceries | Every 7 days at 17:00         | Keep it overdue  | Shop                       |
-| Cook dinner            | Cooking   | Daily at 18:30                | Skip to the next | Cook                       |
-| Pay the bills          | Bills     | Every 30 days at 10:00, fixed | Keep it overdue  | Pay, Check it went through |
-| Call the family        | Call      | Every 7 days at 19:00         | Keep it overdue  | Call                       |
-| Write in the journal   | Journal   | Daily at 22:00                | Skip to the next | Write                      |
-| Practise an instrument | Music     | Mon, Thu at 20:00             | Skip to the next | Practise                   |
-| Do it today. Or else.  | Owl       | Daily, any time, by 23:59     | Skip to the next | Just do it                 |
-| One-off task           | Tide      | Once, tomorrow at 09:00       | Keep it overdue  | Do it                      |
+|                                                                                                                            | Template                   | Repeats                       | If missed        | Steps                      |
+| :------------------------------------------------------------------------------------------------------------------------: | -------------------------- | ----------------------------- | ---------------- | -------------------------- |
+| <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/groceries.svg" alt="Groceries" width="96"> | **Buy groceries**          | Every 7 days at 17:00         | Keep it overdue  | Shop                       |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/cooking.svg" alt="Cooking" width="96">   | **Cook dinner**            | Daily at 18:30                | Skip to the next | Cook                       |
+|     <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/bills.svg" alt="Bills" width="96">     | **Pay the bills**          | Every 30 days at 10:00, fixed | Keep it overdue  | Pay, Check it went through |
+|      <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/call.svg" alt="Call" width="96">      | **Call the family**        | Every 7 days at 19:00         | Keep it overdue  | Call                       |
+|   <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/journal.svg" alt="Journal" width="96">   | **Write in the journal**   | Daily at 22:00                | Skip to the next | Write                      |
+|     <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/music.svg" alt="Music" width="96">     | **Practise an instrument** | Mon, Thu at 20:00             | Skip to the next | Practise                   |
+|       <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/owl.svg" alt="Owl" width="96">       | **Do it today. Or else.**  | Daily, any time, by 23:59     | Skip to the next | Just do it                 |
+|    <img src="https://raw.githubusercontent.com/kriakiku/housetide/main/docs/scenes/generic.svg" alt="Tide" width="96">     | **One-off task**           | Once, tomorrow at 09:00       | Keep it overdue  | Do it                      |
 
 Every interval counts from the last time you did it. The two marked fixed count from the previous due date instead, because the bank does not care when you last felt like it. **Count from** changes this on any task. All of them start with a 24 hour grace period and 12 hours of feeling clean, except the owl, which gets [six hours of nagging](https://github.com/kriakiku/housetide#tasks-with-no-set-time) instead.
 

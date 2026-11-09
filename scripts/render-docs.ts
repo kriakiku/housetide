@@ -75,7 +75,6 @@ interface Grid {
 }
 
 const ALBUM: Grid = { gap: GAP, caption: LABEL, size: 15 }
-const WALL: Grid = { gap: 14, caption: 42, size: 21 }
 
 function serialize(value: unknown): string {
   if (value === null || value === undefined || value === false || typeof value === 'symbol')
@@ -1145,16 +1144,60 @@ function dayStyles(allRuns: Run[]): string {
   ].join('\n')
 }
 
+function embeddedSceneCss(): string {
+  return sceneStyles.cssText
+    .replace(/\.ht-scene\s*\{[^}]*\}/, '')
+    .replace(/(ht-spin [^;]*?)steps\(\d+\)/, '$1linear')
+    .replaceAll(/steps\((?!1\))\d+\)/g, 'ease-in-out')
+}
+
+const LOOP_FRAME = 2.6
+const LOOP_FADE = 0.6
+const LOOP_STATES = [
+  { state: 'accumulating', fill: 0.75, stink: 0, slots: THIS_MORNING },
+  { state: 'due', fill: 1, stink: 0.85, slots: THIS_MORNING },
+  { state: 'running', fill: 1, stink: 0, slots: THIS_MORNING },
+  { state: 'clean', fill: 0, stink: 0, slots: TAKEN_TODAY },
+] as const
+
+function sceneLoop(name: SceneName): string {
+  const total = LOOP_STATES.length * LOOP_FRAME
+  const pct = (seconds: number) => ((seconds / total) * 100).toFixed(2)
+  const last = LOOP_STATES.length - 1
+  const layers = LOOP_STATES.map(({ state, fill, stink, slots }, index) => {
+    const scene = {
+      name,
+      state,
+      fill,
+      stink,
+      progress: 0.5,
+      ...(name === 'pills' ? { slots } : {}),
+    } as never
+    const markup = serialize(renderScene(scene, { animations: true }))
+      .replaceAll(/<!--.*?-->/g, '')
+      .replace('<svg', '<svg width="200" height="200"')
+    return index === 0 ? `<g>${markup}</g>` : `<g class="l${index}">${markup}</g>`
+  }).join('')
+  const rules = LOOP_STATES.slice(1).map((_, offset) => {
+    const index = offset + 1
+    const start = index * LOOP_FRAME
+    const end =
+      index === last
+        ? `${pct(total - LOOP_FADE)}% { opacity: 1 } 100% { opacity: 0 }`
+        : `${pct(start + LOOP_FRAME + LOOP_FADE)}% { opacity: 1 } ${pct(start + LOOP_FRAME + LOOP_FADE + 0.01)}%, 100% { opacity: 0 }`
+    return `.l${index} { opacity: 0; animation: l${index} ${total}s linear infinite }\n@keyframes l${index} { 0%, ${pct(start)}% { opacity: 0 } ${pct(start + LOOP_FADE)}% { opacity: 1 } ${end} }`
+  })
+  const css = `${embeddedSceneCss()}\n${rules.join('\n')}\n@media (prefers-reduced-motion: reduce) { .l1, .l2, .l3 { animation: none } }`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="${name}"><style><![CDATA[${css}]]></style>${layers}</svg>\n`
+}
+
 function dayCycle(only?: number, stillOffset?: number): string {
   const animated = only === undefined
   const allRuns = runs()
   const preview = stillOffset !== undefined
   const shown = allRuns.filter((run) => animated || (only >= run.start && only < run.end))
   const focus = MOMENTS[only ?? 4] as Moment
-  const sceneAnimations = sceneStyles.cssText
-    .replace(/\.ht-scene\s*\{[^}]*\}/, '')
-    .replace(/(ht-spin [^;]*?)steps\(\d+\)/, '$1linear')
-    .replaceAll(/steps\((?!1\))\d+\)/g, 'ease-in-out')
+  const sceneAnimations = embeddedSceneCss()
   const living = livingPlant(only, preview)
   const pills = livingPills(only)
   const washer = livingLaundry(only)
@@ -1476,58 +1519,6 @@ function looksImage(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same scenes with a different variant or accent colour">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(32, 50, 'variant: the pet')}${heading(laundryX, 50, 'variant: the laundry')}${heading(32, rowTwo - 16, 'accent: one vacuum, three moods')}${heading(paletteX, rowTwo - 16, 'accent: or any #rrggbb')}${cells}${swatches}</svg>\n`
 }
 
-const CAST: Record<SceneName, Omit<Sample, 'name'>> = {
-  laundry: { label: 'It has a smell now', state: 'due', fill: 1, stink: 0.8 },
-  bed: { label: 'Hotel, but yours', state: 'clean' },
-  dishes: { label: 'Soup of the day', state: 'due', fill: 1, stink: 0.8 },
-  trash: { label: 'Plotting an escape', state: 'due', fill: 1, stink: 0.5 },
-  vacuum: { label: 'Hunting dust', state: 'running', fill: 1 },
-  bathroom: { label: 'Scrub in progress', state: 'running', fill: 1 },
-  fridge: { label: 'Now sentient', state: 'due', fill: 1, stink: 0.9 },
-  window: { label: 'Birds, be warned', state: 'clean' },
-  cooler: { label: 'Five minutes away', state: 'waiting', fill: 1 },
-  filter: { label: 'Now with texture', state: 'due', fill: 1, stink: 0.8 },
-  lawn: { label: 'Legally a meadow', state: 'due', fill: 1, stink: 0.8 },
-  pet: { label: 'Has never been fed', state: 'due', fill: 1 },
-  plant: { label: 'Writing its will', state: 'due', fill: 1, stink: 0.9 },
-  pills: {
-    label: 'Wednesday? Never.',
-    state: 'due',
-    fill: 1,
-    slots: ['taken', 'taken', 'missed', 'current', 'full', 'full', 'full'],
-  },
-  teeth: { label: 'Yes, two minutes', state: 'running', fill: 1 },
-  water: { label: 'Hydration achieved', state: 'clean' },
-  gym: { label: 'Gains, in rust', state: 'due', fill: 1, stink: 0.8 },
-  pool: { label: 'Mosquito resort', state: 'due', fill: 1, stink: 0.8 },
-  yoga: { label: 'Downward regret', state: 'due', fill: 1, stink: 0.8 },
-  run: { label: 'A mouse lives here', state: 'due', fill: 1, stink: 0.8 },
-  ev: { label: 'Eating electrons', state: 'running', fill: 1 },
-  fuel: { label: 'Vulture on standby', state: 'due', fill: 1, stink: 0.8 },
-  carwash: { label: 'Bird-approved', state: 'due', fill: 1, stink: 0.8 },
-  study: { label: 'Chapter one, again', state: 'due', fill: 1, stink: 0.8 },
-  language: { label: 'Pardon my French', state: 'due', fill: 1, stink: 0.8 },
-  coding: { label: 'It is a feature', state: 'due', fill: 1, stink: 0.8 },
-  slides: { label: 'Next slide, please', state: 'due', fill: 1, stink: 0.8 },
-  book: { label: 'Moths finished it', state: 'due', fill: 1, stink: 0.8 },
-  backup: { label: 'Last backup: never', state: 'due', fill: 1, stink: 0.8 },
-  groceries: { label: 'One onion, crying', state: 'due', fill: 1, stink: 0.8 },
-  cooking: { label: 'Alarm says dinner', state: 'due', fill: 1, stink: 0.8 },
-  bills: { label: 'Final final notice', state: 'due', fill: 1, stink: 0.8 },
-  call: { label: 'Mum has questions', state: 'due', fill: 1, stink: 0.8 },
-  journal: { label: 'Dear diary, sorry', state: 'due', fill: 1, stink: 0.8 },
-  music: { label: 'A bit flat', state: 'due', fill: 1, stink: 0.8 },
-  owl: { label: 'Do it. Or else.', state: 'due', fill: 1, stink: 0.9 },
-  generic: { label: 'Everything else', state: 'accumulating', fill: 0.6 },
-}
-
-const castSample = (name: SceneName): Sample => ({ name, ...CAST[name] })
-
-const castOrder: SceneName[] = [
-  ...PICKER_GROUPS.flatMap((group) => group.scenes).filter((name) => name !== 'owl'),
-  'owl',
-]
-
 const OWL_NAG_MINUTES = 360
 const OWL_DEADLINE = 23 * 60 + 59
 const OWL_DAY: ReadonlyArray<readonly [string, string]> = [
@@ -1577,8 +1568,11 @@ gallery('laundry', [
   { label: 'Hang it up', name: 'laundry', state: 'waiting', fill: 1, stink: 0.5 },
   { label: 'Clean', name: 'laundry', state: 'clean' },
 ])
-gallery('cast', castOrder.map(castSample), 6, WALL)
 writeFileSync(join(OUT, 'day.svg'), dayCycle())
+mkdirSync(join(OUT, 'scenes'), { recursive: true })
+for (const name of PICKER_GROUPS.flatMap((group) => group.scenes)) {
+  writeFileSync(join(OUT, 'scenes', `${name}.svg`), sceneLoop(name))
+}
 writeFileSync(join(OUT, 'layouts.svg'), layoutsImage())
 writeFileSync(join(OUT, 'editor.svg'), editorImage())
 writeFileSync(join(OUT, 'looks.svg'), looksImage())
