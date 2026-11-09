@@ -13,6 +13,29 @@ export type SceneName =
   | 'fridge'
   | 'window'
   | 'water'
+  | 'cooler'
+  | 'gym'
+  | 'pool'
+  | 'ev'
+  | 'fuel'
+  | 'study'
+  | 'language'
+  | 'coding'
+  | 'slides'
+  | 'book'
+  | 'filter'
+  | 'bills'
+  | 'yoga'
+  | 'run'
+  | 'groceries'
+  | 'cooking'
+  | 'call'
+  | 'journal'
+  | 'lawn'
+  | 'music'
+  | 'backup'
+  | 'carwash'
+  | 'owl'
 export type SceneState = 'resting' | 'accumulating' | 'due' | 'running' | 'waiting' | 'clean'
 export type PillSlot = 'taken' | 'missed' | 'current' | 'full'
 export type OnMissed = 'carry' | 'skip'
@@ -45,12 +68,14 @@ export interface OnceSchedule {
 export interface DailySchedule {
   type: 'daily'
   time: string
+  anytime?: boolean
 }
 
 export interface WeeklySchedule {
   type: 'weekly'
   weekdays: number[]
   time: string
+  anytime?: boolean
 }
 
 export interface IntervalSchedule {
@@ -58,6 +83,7 @@ export interface IntervalSchedule {
   every_days: number
   time: string
   anchor: IntervalAnchor
+  anytime?: boolean
 }
 
 export type Schedule = OnceSchedule | DailySchedule | WeeklySchedule | IntervalSchedule
@@ -93,6 +119,7 @@ export interface Task {
   stages: Stage[]
   clean_for_minutes: number
   grace_hours: number
+  look?: SceneLook | null
 }
 
 export type TaskDraft = Omit<Task, 'id'> & { id?: string }
@@ -117,6 +144,11 @@ export interface Runtime {
   undo: Runtime | null
 }
 
+export interface SceneLook {
+  accent?: string | null
+  variant?: string | null
+}
+
 export interface SceneView {
   name: SceneName
   state: SceneState
@@ -124,6 +156,7 @@ export interface SceneView {
   stink: number
   progress: number
   slots?: PillSlot[]
+  look?: SceneLook
 }
 
 export interface TaskView {
@@ -148,6 +181,7 @@ export interface TaskView {
   can_skip: boolean
   can_undo: boolean
   automated: boolean
+  anytime: boolean
   scene: SceneView
 }
 

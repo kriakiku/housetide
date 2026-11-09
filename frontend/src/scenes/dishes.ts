@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   clamp01,
   COLORS as C,
@@ -14,6 +15,7 @@ import {
   motion,
   part,
   reached,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
@@ -299,9 +301,22 @@ function sinkHole(): Art {
   ])
 }
 
-function counter(parts: DishesParts, stinkTint: number): Art {
-  const body = mix(C.mint, C.musty, stinkTint)
-  const shade = mix(C.mintDark, C.mustyDark, stinkTint)
+interface Cabinet {
+  body: string
+  shade: string
+  ink: string
+}
+
+function cabinetOf(scene: SceneView): Cabinet {
+  const body = accentOf(scene, C.mint)
+  return body === C.mint
+    ? { body, shade: C.mintDark, ink: FACE_INK }
+    : { body, shade: shadeOf(body), ink: shadeOf(body, 0.8) }
+}
+
+function counter(parts: DishesParts, stinkTint: number, cabinet: Cabinet): Art {
+  const body = mix(cabinet.body, C.musty, stinkTint)
+  const shade = mix(cabinet.shade, C.mustyDark, stinkTint)
   return [
     svg`<rect x="38" y="172" width="18" height="10" rx="3" fill=${C.metalDark} /><rect x="144" y="172" width="18" height="10" rx="3" fill=${C.metalDark} />`,
     part('cabinet', [
@@ -313,7 +328,7 @@ function counter(parts: DishesParts, stinkTint: number): Art {
       svg`<rect x="12" y="105" width="176" height="15" rx="7" fill=${C.cream} />`,
       svg`<path d="M20 116.5H180" stroke=${C.creamDark} stroke-width="3" stroke-linecap="round" />`,
     ]),
-    face(100, 157, parts.mood, FACE_INK, 1.05),
+    face(100, 157, parts.mood, cabinet.ink, 1.05),
   ]
 }
 
@@ -355,7 +370,7 @@ function zzz(): Art {
   )
 }
 
-function sinkView(parts: DishesParts, stinkTint: number): Art {
+function sinkView(parts: DishesParts, stinkTint: number, cabinet: Cabinet): Art {
   const lines: Array<readonly [number, number]> = [
     [20, 98],
     [178, 76],
@@ -380,7 +395,7 @@ function sinkView(parts: DishesParts, stinkTint: number): Art {
     when(parts.mould > 0, () => mouldyCup(parts.mould)),
     when(parts.teeter, () => towerTop(parts)),
     when(parts.teeter && parts.stench < 2, shakes),
-    counter(parts, stinkTint),
+    counter(parts, stinkTint, cabinet),
     counterStains(parts.crust),
     when(parts.drip && parts.stench === 0, zzz),
     stenchLines(lines.slice(0, parts.stench)),
@@ -446,7 +461,7 @@ function waterStream(): Art {
   ])
 }
 
-function washingView(parts: DishesParts, stinkTint: number): Art {
+function washingView(parts: DishesParts, stinkTint: number, cabinet: Cabinet): Art {
   return [
     shadow(100, 183, 80),
     tap(),
@@ -455,7 +470,7 @@ function washingView(parts: DishesParts, stinkTint: number): Art {
     waterStream(),
     at(90, 62, motion('bob', at(0, 0, sponge(), -18))),
     foam(),
-    counter(parts, stinkTint),
+    counter(parts, stinkTint, cabinet),
     counterStains(parts.crust),
     bubble(26, 50, 10, 1),
     bubble(24, 30, 7, 2),
@@ -570,7 +585,7 @@ function towel(): Art {
   ])
 }
 
-function rackView(parts: DishesParts, stinkTint: number): Art {
+function rackView(parts: DishesParts, stinkTint: number, cabinet: Cabinet): Art {
   const clouds: Array<readonly [number, number, number]> = [
     [58, 30, 0.75],
     [112, 26, 0.6],
@@ -585,7 +600,7 @@ function rackView(parts: DishesParts, stinkTint: number): Art {
     tap(),
     sinkHole(),
     when(parts.wet, rackDrips),
-    counter(parts, stinkTint),
+    counter(parts, stinkTint, cabinet),
     dryingRack(parts.wet, stinkTint),
     when(parts.wet, clingingDrops),
     when(parts.wet, towelWish),
@@ -604,10 +619,11 @@ function rackView(parts: DishesParts, stinkTint: number): Art {
 export function dishes(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = dishesParts(scene)
   const tint = scene.state === 'clean' ? 0 : clamp01(scene.stink) * 0.55
+  const cabinet = cabinetOf(scene)
   const views: Record<DishesView, () => Art> = {
-    sink: () => sinkView(parts, tint),
-    washing: () => washingView(parts, tint),
-    rack: () => rackView(parts, tint),
+    sink: () => sinkView(parts, tint, cabinet),
+    washing: () => washingView(parts, tint, cabinet),
+    rack: () => rackView(parts, tint, cabinet),
   }
   return frame('dishes', scene, options, views[parts.view]())
 }

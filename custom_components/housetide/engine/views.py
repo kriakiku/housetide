@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, tzinfo
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from .machine import can_advance, can_skip, current_stage, is_finished, is_started
-from .models import PACK_SIZE, Runtime, Stage, Task, as_utc, format_instant
-from .schedule import dose_slot, start_of_next_day
+from .models import PACK_SIZE, Runtime, Stage, Task, as_utc, format_instant, is_anytime
+from .schedule import dose_slot, local_date, resolve_local, start_of_next_day
 
 Status = Literal["upcoming", "due", "overdue", "in_progress", "clean", "done", "disabled"]
 SceneState = Literal["resting", "accumulating", "due", "running", "waiting", "clean"]
@@ -15,7 +15,13 @@ def _clamp(value: float) -> float:
     return round(min(1.0, max(0.0, value)), 4)
 
 
-def task_status(task: Task, runtime: Runtime, now: datetime) -> Status:
+def _nag_start(task: Task, due: datetime, zone: tzinfo) -> datetime:
+    midnight = resolve_local(local_date(due, zone), time(0, 0), zone)
+    return max(due - timedelta(hours=task.grace_hours), midnight)
+
+
+def task_status(task: Task, runtime: Runtime, now: datetime, zone: tzinfo | None = None) -> Status:
+    tz: Any = zone if zone is not None else now.tzinfo
     now = as_utc(now)
     if not task.enabled:
         return "disabled"
@@ -24,7 +30,12 @@ def task_status(task: Task, runtime: Runtime, now: datetime) -> Status:
     if is_started(runtime):
         return "in_progress"
     due = runtime.due_at
-    if due is not None and now >= due:
+    if due is not None and is_anytime(task.schedule):
+        if now > due:
+            return "overdue"
+        if now >= _nag_start(task, due, tz):
+            return "due"
+    elif due is not None and now >= due:
         past_grace = now > due + timedelta(hours=task.grace_hours)
         past_next = runtime.next_due_at is not None and now >= runtime.next_due_at
         return "overdue" if past_grace or past_next else "due"
@@ -34,30 +45,45 @@ def task_status(task: Task, runtime: Runtime, now: datetime) -> Status:
 
 
 def is_today(status: Status, runtime: Runtime, now: datetime, zone: ZoneInfo) -> bool:
-    if status in ("in_progress", "overdue", "due"):
+    if status in ("in_progress", "overdue"):
         return True
     if status in ("disabled", "done") or runtime.due_at is None:
         return False
     return runtime.due_at < start_of_next_day(as_utc(now), zone)
 
 
-def scene_fill(runtime: Runtime, now: datetime) -> float:
+def scene_fill(runtime: Runtime, now: datetime, deadline_zone: tzinfo | None = None) -> float:
     due = runtime.due_at
     if due is None:
         return 0.0
     start = runtime.last_completed_at or runtime.stage_entered_at
     if start is None or due <= start:
-        return 1.0 if now >= due else 0.0
-    return _clamp((now - start) / (due - start))
+        built = 1.0 if now >= due else 0.0
+    else:
+        built = _clamp((now - start) / (due - start))
+    if deadline_zone is None or local_date(now, deadline_zone) < local_date(due, deadline_zone):
+        return built
+    midnight = resolve_local(local_date(due, deadline_zone), time(0, 0), deadline_zone)
+    share = 1.0 if due <= midnight else _clamp((now - midnight) / (due - midnight))
+    return max(built, share)
 
 
-def scene_stink(task: Task, runtime: Runtime, stage: Stage, status: Status, now: datetime) -> float:
+def scene_stink(
+    task: Task, runtime: Runtime, stage: Stage, status: Status, now: datetime, zone: tzinfo
+) -> float:
     if status not in ("due", "overdue", "in_progress"):
         return 0.0
     if stage.stale_after_minutes is not None:
         return _stale_stink(runtime, stage.stale_after_minutes, now)
     due = runtime.due_at
-    if due is None or now <= due:
+    if due is None:
+        return 0.0
+    if is_anytime(task.schedule):
+        start = _nag_start(task, due, zone)
+        if start >= due:
+            return 1.0 if now >= due else 0.0
+        return _clamp((now - start) / (due - start))
+    if now <= due:
         return 0.0
     if task.grace_hours == 0:
         return 1.0
@@ -115,23 +141,26 @@ def task_view(
     tz: Any = zone if zone is not None else now.tzinfo
     now = as_utc(now)
     stage = current_stage(task, runtime)
-    status = task_status(task, runtime, now)
+    status = task_status(task, runtime, now, tz)
     due = runtime.due_at
     overdue_seconds = 0
     if due is not None and status != "disabled" and now > due:
         overdue_seconds = int((now - due).total_seconds())
-    fill = 0.0 if status == "disabled" else scene_fill(runtime, now)
+    anytime = is_anytime(task.schedule)
+    fill = 0.0 if status == "disabled" else scene_fill(runtime, now, tz if anytime else None)
     state = scene_state(status, stage, fill, runtime.last_completed_at is not None)
     progress = 1.0 if state == "clean" else _clamp(runtime.stage_index / len(task.stages))
     scene: dict[str, Any] = {
         "name": task.scene,
         "state": state,
         "fill": fill,
-        "stink": scene_stink(task, runtime, stage, status, now),
+        "stink": scene_stink(task, runtime, stage, status, now, tz),
         "progress": progress,
     }
     if task.scene == "pills":
         scene["slots"] = scene_slots(task, runtime, status, tz)
+    if task.look is not None:
+        scene["look"] = task.look.to_dict()
     return {
         "task_id": task.id,
         "title": task.title,
@@ -154,5 +183,6 @@ def task_view(
         "can_skip": can_skip(task, runtime),
         "can_undo": runtime.undo is not None,
         "automated": stage.complete_when is not None and bool(stage.complete_when.entity_id),
+        "anytime": anytime,
         "scene": scene,
     }

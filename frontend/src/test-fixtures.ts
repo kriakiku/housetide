@@ -112,6 +112,7 @@ export function view(status: TaskStatus, override: Partial<TaskView> = {}): Task
     can_skip: status !== 'disabled' && status !== 'done',
     can_undo: false,
     automated: false,
+    anytime: false,
     scene: { name: 'generic', state: 'due', fill: 0.5, stink: 0, progress: 0 },
     ...override,
   }

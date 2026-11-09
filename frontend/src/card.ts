@@ -2,8 +2,7 @@ import { css, html, LitElement, nothing } from 'lit'
 import type { PropertyDeclarations, PropertyValues, TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 
-import type { I18n, MessageKey } from './i18n.ts'
-import { createI18n } from './i18n.ts'
+import type { I18n } from './i18n.ts'
 import {
   ActionTracker,
   hassChanged,
@@ -27,7 +26,7 @@ import {
 import type { TaskContext } from './panel/tile.ts'
 import { renderScene } from './scenes/index.ts'
 import { sceneStyles, tokens } from './styles.ts'
-import type { HomeAssistant, StatePayload, TaskView } from './types.ts'
+import type { HomeAssistant, TaskView } from './types.ts'
 
 export interface CardConfig {
   type?: string
@@ -36,23 +35,6 @@ export interface CardConfig {
   layout?: 'list' | 'scenes'
   title?: string
   animations?: boolean
-}
-
-interface FormField {
-  name: string
-}
-
-const catalog: { tasks: Array<{ value: string; label: string }>; i18n: I18n } = {
-  tasks: [],
-  i18n: createI18n(typeof navigator === 'undefined' ? 'en' : navigator.language),
-}
-
-const FIELD_LABELS: Record<string, MessageKey> = {
-  title: 'config_title',
-  show: 'config_show',
-  layout: 'config_layout',
-  tasks: 'config_tasks',
-  animations: 'config_animations',
 }
 
 export function assertCardConfig(config: CardConfig): void {
@@ -168,49 +150,8 @@ export class HousetideCard extends LitElement {
     `,
   ]
 
-  static getConfigForm(): {
-    schema: object[]
-    computeLabel: (field: FormField) => string | undefined
-  } {
-    const { i18n, tasks } = catalog
-    return {
-      schema: [
-        { name: 'title', selector: { text: {} } },
-        {
-          name: 'show',
-          selector: {
-            select: {
-              mode: 'dropdown',
-              options: [
-                { value: 'today', label: i18n.t('config_show_today') },
-                { value: 'all', label: i18n.t('config_show_all') },
-              ],
-            },
-          },
-        },
-        {
-          name: 'layout',
-          selector: {
-            select: {
-              mode: 'dropdown',
-              options: [
-                { value: 'list', label: i18n.t('config_layout_list') },
-                { value: 'scenes', label: i18n.t('config_layout_scenes') },
-              ],
-            },
-          },
-        },
-        {
-          name: 'tasks',
-          selector: { select: { multiple: true, custom_value: true, options: tasks } },
-        },
-        { name: 'animations', selector: { boolean: {} } },
-      ],
-      computeLabel: (field) => {
-        const key = Object.hasOwn(FIELD_LABELS, field.name) ? FIELD_LABELS[field.name] : undefined
-        return key ? i18n.t(key) : undefined
-      },
-    }
+  static getConfigElement(): HTMLElement {
+    return document.createElement('housetide-card-editor')
   }
 
   static getStubConfig(): CardConfig {
@@ -226,13 +167,7 @@ export class HousetideCard extends LitElement {
   constructor() {
     super()
     this.config = {}
-    this.live = new StateController(
-      this,
-      () => this.hass,
-      (state) => {
-        this.updateCatalog(state)
-      },
-    )
+    this.live = new StateController(this, () => this.hass)
     this.tracker = new ActionTracker(this, () => this.hass)
   }
 
@@ -252,14 +187,7 @@ export class HousetideCard extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues): void {
-    if (changed.has('hass')) {
-      this.live.sync()
-      if (this.hass) catalog.i18n = localeOf(this.hass)
-    }
-  }
-
-  private updateCatalog(state: StatePayload): void {
-    catalog.tasks = state.tasks.map((task) => ({ value: task.id, label: task.title }))
+    if (changed.has('hass')) this.live.sync()
   }
 
   private views(): TaskView[] {

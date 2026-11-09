@@ -87,6 +87,33 @@ export function mix(from: string, to: string, amount: number): string {
   return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
+export function accentOf(scene: SceneView, fallback: string): string {
+  const value = scene.look?.accent
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
+}
+
+export function shadeOf(color: string, amount = 0.24): string {
+  return mix(color, '#1b1f33', amount)
+}
+
+export function tintOf(color: string, amount = 0.4): string {
+  return mix(color, '#ffffff', amount)
+}
+
+export function isDarkColor(hex: string): boolean {
+  const n = Number.parseInt(hex.slice(1), 16)
+  return ((n >> 16) & 255) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11 < 96
+}
+
+export function variantOf<T extends string>(
+  scene: SceneView,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const value = scene.look?.variant
+  return allowed.find((item) => item === value) ?? fallback
+}
+
 export function round(value: number): number {
   return Math.round(value * 100) / 100
 }

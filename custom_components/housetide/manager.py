@@ -285,7 +285,7 @@ class HousetideManager:
         now = dt_util.utcnow()
         transition = machine.undo(task, self.runtimes[task_id], now, source, user_id)
         self._commit(task, transition)
-        if views.task_status(task, transition.runtime, now) in ("due", "overdue"):
+        if views.task_status(task, transition.runtime, now, self._zone) in ("due", "overdue"):
             self._announced[task_id] = transition.runtime.occurrence_id
         self._install_hold(task, now, latched=True)
         self._sync_listener()
@@ -557,7 +557,7 @@ class HousetideManager:
     def _announce_due(self, now: datetime) -> None:
         for task in self.tasks.values():
             runtime = self.runtimes[task.id]
-            if views.task_status(task, runtime, now) not in ("due", "overdue"):
+            if views.task_status(task, runtime, now, self._zone) not in ("due", "overdue"):
                 continue
             if self._announced.get(task.id) == runtime.occurrence_id:
                 continue

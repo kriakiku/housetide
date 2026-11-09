@@ -32,6 +32,7 @@ VIEW_KEYS = {
     "can_skip",
     "can_undo",
     "automated",
+    "anytime",
     "scene",
 }
 
@@ -461,3 +462,13 @@ def test_a_carried_task_is_overdue_once_the_next_occurrence_arrives() -> None:
     state = base(next_due_at=next_due)
     assert task_status(task, state, next_due - timedelta(seconds=1)) == "due"
     assert task_status(task, state, next_due) == "overdue"
+
+
+def test_scene_has_no_look_unless_set() -> None:
+    assert "look" not in task_view(make_task(), runtime(), D, KYIV)["scene"]
+    assert "look" not in task_view(make_task(look={}), runtime(), D, KYIV)["scene"]
+
+
+def test_scene_carries_the_look() -> None:
+    look = {"accent": "#123456", "variant": None}
+    assert task_view(make_task(look=look), runtime(), D, KYIV)["scene"]["look"] == look

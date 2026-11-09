@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   blobPath,
   clamp01,
@@ -17,10 +18,12 @@ import {
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
   superellipsePath,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -427,13 +430,25 @@ function mirrored(art: Art): Art {
   return svg`<g transform="translate(200 0) scale(-1 1)">${art}</g>`
 }
 
-function drapes(parts: WindowParts): Art {
+interface DrapeTone {
+  main: string
+  dark: string
+  tie: string
+}
+
+function drapeTone(scene: SceneView): DrapeTone {
+  const main = accentOf(scene, C.coral)
+  if (main === C.coral) return { main, dark: C.coralDark, tie: C.sun }
+  return { main, dark: shadeOf(main), tie: tintOf(main, 0.55) }
+}
+
+function drapes(parts: WindowParts, tone: DrapeTone): Art {
   const s = drapeShape(parts.drape, parts.droop)
   const decay = parts.droop / 2
   const night = parts.drape === 'half' ? 0.28 : 0
-  const color = mix(mix(C.coral, '#16204d', night), '#8d7a5c', decay * 0.85)
-  const fold = mix(mix(C.coralDark, '#16204d', night), '#6d5c44', decay * 0.85)
-  const tie = mix(C.sun, '#8d7a5c', decay)
+  const color = mix(mix(tone.main, '#16204d', night), '#8d7a5c', decay * 0.85)
+  const fold = mix(mix(tone.dark, '#16204d', night), '#6d5c44', decay * 0.85)
+  const tie = mix(tone.tie, '#8d7a5c', decay)
   const left = curtain(parts, s, color, fold, tie)
   const right = mirrored(curtain(parts, { ...s, sag: s.sag * 0.6 }, color, fold, tie))
   const sway = parts.drape === 'open' && parts.droop === 0
@@ -625,7 +640,7 @@ export function window(scene: SceneView, options?: SceneOptions): TemplateResult
     svg`<rect x="18" y="120" width="164" height="13" rx="5" fill=${C.wickerLight} data-part="sill" />`,
     svg`<rect x="26" y="130" width="148" height="3" fill=${C.wickerDark} opacity=".55" />`,
     deadSpots.slice(0, parts.deadFlies).map(([x, r], i) => deadFly(x, r, i)),
-    drapes(parts),
+    drapes(parts, drapeTone(scene)),
     rod(),
     when(parts.dazzle, bird),
     when(parts.cloth, cloth),

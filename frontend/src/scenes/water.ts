@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   COLORS as C,
   clamp01,
@@ -15,8 +16,10 @@ import {
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -152,6 +155,20 @@ const INK_BLUE = '#14406e'
 const DUST = '#f4e2b4'
 const LEMON = '#ffe27a'
 const PITH = '#fff6d6'
+const FOAM = '#dff5ff'
+
+interface Tones {
+  liquid: string
+  dark: string
+  foam: string
+}
+
+function tonesOf(scene: SceneView): Tones {
+  const liquid = accentOf(scene, C.water)
+  return liquid === C.water
+    ? { liquid, dark: C.waterDark, foam: FOAM }
+    : { liquid, dark: shadeOf(liquid), foam: tintOf(liquid, 0.75) }
+}
 
 function halfWidth(y: number, inset: number): number {
   const t = clamp01((y - SHOULDER_TOP) / (SHOULDER_BOTTOM - SHOULDER_TOP))
@@ -240,11 +257,11 @@ const FLOOR_CRACKS = [
   'M72 188l6-4 11 2M112 188l8-4 8 2',
 ] as const
 
-function bottle(parts: WaterParts, tint: number): Art {
-  const liquid = mix(C.water, '#b9c98a', tint * 0.55)
-  const top = parts.level > 140 ? C.waterDark : mix(C.water, '#ffffff', 0.42)
+function bottle(parts: WaterParts, tint: number, tones: Tones): Art {
+  const liquid = mix(tones.liquid, '#b9c98a', tint * 0.55)
+  const top = parts.level > 140 ? tones.dark : tintOf(tones.liquid, 0.42)
   const glassFill = mix(EMPTY, DUST, Math.max(tint, parts.step / MAX_THIRST) * 0.8)
-  const mark = mix(C.waterDark, '#a9894f', parts.step / MAX_THIRST)
+  const mark = mix(tones.dark, '#a9894f', parts.step / MAX_THIRST)
   return [
     svg`<path d=${shapePath(BOTTLE_TOP, 0, 0)} fill=${RIM} data-part="bottle" />`,
     svg`<path d=${shapePath(BOTTLE_TOP, WALL, 0)} fill=${glassFill} />`,
@@ -284,7 +301,14 @@ function floorCracks(count: number): Art {
   )
 }
 
-function iceCube(x: number, y: number, size: number, rotate: number, delay: number): Art {
+function iceCube(
+  x: number,
+  y: number,
+  size: number,
+  rotate: number,
+  delay: number,
+  liquid: string,
+): Art {
   const half = size / 2
   return part(
     'ice',
@@ -299,7 +323,7 @@ function iceCube(x: number, y: number, size: number, rotate: number, delay: numb
           [
             svg`<rect x=${-half} y=${-half} width=${size} height=${size} rx="5" fill="#effaff" />`,
             svg`<path d=${`M${-half + 5} ${half - 6}V${-half + 5}H${half - 6}`} fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />`,
-            svg`<rect x=${-half + 9} y=${-half + 9} width=${size - 13} height=${size - 13} rx="3" fill=${mix(C.water, '#ffffff', 0.55)} />`,
+            svg`<rect x=${-half + 9} y=${-half + 9} width=${size - 13} height=${size - 13} rx="3" fill=${tintOf(liquid, 0.55)} />`,
           ],
           rotate,
         ),
@@ -437,19 +461,19 @@ function shimmerLines(count: number, spots: ReadonlyArray<readonly [number, numb
     )
 }
 
-function thought(): Art {
+function thought(tones: Tones): Art {
   return part('thirst', [
     svg`<circle cx="50" cy="93" r="3.5" fill=${C.cream} /><circle cx="47" cy="79" r="6" fill=${C.cream} />`,
     at(
       40,
       44,
-      motion('pulse', [svg`<circle r="25" fill=${C.cream} />`, drop(0, 1, C.waterDark, 1.8)]),
+      motion('pulse', [svg`<circle r="25" fill=${C.cream} />`, drop(0, 1, tones.dark, 1.8)]),
     ),
   ])
 }
 
-function sweat(): Art {
-  return part('sweat', at(157, 100, motion('drip', drop(0, 0, C.water, 0.95), 2)))
+function sweat(tones: Tones): Art {
+  return part('sweat', at(157, 100, motion('drip', drop(0, 0, tones.liquid, 0.95), 2)))
 }
 
 function cactus(stage: number): Art {
@@ -498,18 +522,18 @@ function jug(): Art {
   ])
 }
 
-function stream(level: number): Art {
+function stream(level: number, tones: Tones): Art {
   const d = `M122 37C108 38 100 46 100 60V${level}`
   return part('stream', [
-    svg`<path d=${d} fill="none" stroke=${C.water} stroke-width="12" stroke-linecap="round" />`,
+    svg`<path d=${d} fill="none" stroke=${tones.liquid} stroke-width="12" stroke-linecap="round" />`,
     motion(
       'flicker',
-      svg`<path d=${d} fill="none" stroke="#dff5ff" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="9 13" />`,
+      svg`<path d=${d} fill="none" stroke=${tones.foam} stroke-width="3.6" stroke-linecap="round" stroke-dasharray="9 13" />`,
     ),
   ])
 }
 
-function splashes(level: number): Art {
+function splashes(level: number, tones: Tones): Art {
   const spots = [
     [-26, level - 8, 0.8, 1],
     [24, level - 11, 0.9, 2],
@@ -518,7 +542,7 @@ function splashes(level: number): Art {
   ] as const
   return part(
     'splash',
-    spots.map(([x, y, s, d]) => at(100 + x, y, motion('drip', drop(0, 0, '#dff5ff', s), d))),
+    spots.map(([x, y, s, d]) => at(100 + x, y, motion('drip', drop(0, 0, tones.foam, s), d))),
   )
 }
 
@@ -526,9 +550,9 @@ function glassEdge(y: number): number {
   return round(-26 + (y - 104) * 0.09)
 }
 
-function glass(parts: WaterParts): Art {
+function glass(parts: WaterParts, tones: Tones): Art {
   const level = 116 + parts.evaporated * 9
-  const liquid = mix(C.water, '#b9c98a', parts.evaporated / 3)
+  const liquid = mix(tones.liquid, '#b9c98a', parts.evaporated / 3)
   const stale = parts.evaporated >= 2
   return part(
     'glass',
@@ -560,10 +584,10 @@ function chevron(): Art {
   )
 }
 
-function bottleBody(parts: WaterParts, tint: number): Art {
+function bottleBody(parts: WaterParts, tint: number, tones: Tones): Art {
   const party = parts.extra === 'party'
   return [
-    bottle(parts, tint),
+    bottle(parts, tint, tones),
     parts.capped ? cap() : bottleLip(),
     when(parts.extra === 'jug', () => [
       bubble(-30, 166, 6, 1),
@@ -576,9 +600,9 @@ function bottleBody(parts: WaterParts, tint: number): Art {
       bubble(34, 154, 5.5, 1),
       bubble(-34, 162, 4.5, 3),
       bubble(30, 122, 3.5, 4),
-      iceCube(-25, 96, 25, -14, 1),
-      iceCube(27, 98, 25, 16, 2),
-      iceCube(1, 86, 21, 42, 3),
+      iceCube(-25, 96, 25, -14, 1, tones.liquid),
+      iceCube(27, 98, 25, 16, 2, tones.liquid),
+      iceCube(1, 86, 21, 42, 3, tones.liquid),
     ]),
     crackArt(parts.cracks, mix(C.metalDark, '#6b5a3a', 0.4)),
     shine(),
@@ -603,10 +627,11 @@ function shimmerSpots(offered: boolean): ReadonlyArray<readonly [number, number]
 
 export function water(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = waterParts(scene)
+  const tones = tonesOf(scene)
   const tint = Math.max(parts.cracks, parts.evaporated) / 3
   const offered = parts.extra === 'glass'
   const party = parts.extra === 'party'
-  const centred = at(100, 0, bottleBody(parts, tint))
+  const centred = at(100, 0, bottleBody(parts, tint, tones))
   const posed = offered ? at(71, 180, at(-100, -180, centred), 0, 0.8) : centred
   return frame('water', scene, options, [
     warmth(parts.sun),
@@ -625,10 +650,14 @@ export function water(scene: SceneView, options?: SceneOptions): TemplateResult 
       sparkle(26, 140, 0.8, 3),
       sparkle(170, 34, 0.85, 4),
     ]),
-    when(parts.thought, thought),
-    when(parts.thought, sweat),
-    when(parts.extra === 'jug', () => [stream(parts.level), jug(), splashes(parts.level)]),
-    when(offered, () => [glass(parts), chevron()]),
+    when(parts.thought, () => thought(tones)),
+    when(parts.thought, () => sweat(tones)),
+    when(parts.extra === 'jug', () => [
+      stream(parts.level, tones),
+      jug(),
+      splashes(parts.level, tones),
+    ]),
+    when(offered, () => [glass(parts, tones), chevron()]),
     fliesOver(parts.flies),
     shimmerLines(parts.shimmer, shimmerSpots(offered)),
   ])

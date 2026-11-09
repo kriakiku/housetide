@@ -66,7 +66,6 @@ export class StateController implements ReactiveController {
 
   private readonly host: ReactiveControllerHost
   private readonly hass: () => HomeAssistant | undefined
-  private readonly onState: ((state: StatePayload) => void) | undefined
   private connected = false
   private connection: HassConnection | undefined
   private unsubscribe: Unsubscribe | undefined
@@ -74,14 +73,9 @@ export class StateController implements ReactiveController {
   private timer: ReturnType<typeof setInterval> | undefined
   private clockOffset = 0
 
-  constructor(
-    host: ReactiveControllerHost,
-    hass: () => HomeAssistant | undefined,
-    onState?: (state: StatePayload) => void,
-  ) {
+  constructor(host: ReactiveControllerHost, hass: () => HomeAssistant | undefined) {
     this.host = host
     this.hass = hass
-    this.onState = onState
     host.addController(this)
   }
 
@@ -148,7 +142,6 @@ export class StateController implements ReactiveController {
     const server = Date.parse(state.now)
     this.clockOffset = Number.isNaN(server) ? 0 : server - Date.now()
     this.refreshClock()
-    this.onState?.(state)
     this.host.requestUpdate()
   }
 
@@ -190,6 +183,7 @@ export function compareKeys(a: OrderKey, b: OrderKey): number {
 }
 
 export function isEarly(view: TaskView): boolean {
+  if (view.anytime && view.is_today) return false
   return view.status === 'upcoming' || view.status === 'clean'
 }
 

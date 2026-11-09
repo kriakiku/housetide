@@ -9,6 +9,7 @@ from custom_components.housetide.engine.models import (
     DailySchedule,
     HistoryEvent,
     IntervalSchedule,
+    Look,
     OnceSchedule,
     Runtime,
     Settings,
@@ -135,6 +136,7 @@ def test_task_defaults_and_round_trip() -> None:
         "title",
         "icon",
         "color",
+        "look",
         "notes",
         "assignee",
         "enabled",
@@ -283,3 +285,53 @@ def test_engine_is_pure(path: Path) -> None:
             assert node.attr not in {"now", "utcnow", "today"}, f"wall clock in {path.name}"
     assert "homeassistant" not in imported
     assert "time" not in imported
+
+
+def test_look_is_optional_on_stored_tasks() -> None:
+    task = Task.from_dict(task_dict())
+    assert task.look is None
+    assert task.to_dict()["look"] is None
+    assert Task.from_dict(task.to_dict()) == task
+
+
+def test_look_round_trip() -> None:
+    task = Task.from_dict(task_dict(look={"accent": "#12aBcD", "variant": "dog"}))
+    assert task.look == Look(accent="#12aBcD", variant="dog")
+    assert task.to_dict()["look"] == {"accent": "#12aBcD", "variant": "dog"}
+    assert Task.from_dict(task.to_dict()) == task
+
+
+@pytest.mark.parametrize("look", [None, {}, {"accent": None}, {"accent": None, "variant": None}])
+def test_empty_look_is_no_look(look: Any) -> None:
+    assert Task.from_dict(task_dict(look=look)).look is None
+
+
+def test_partial_look_keeps_the_missing_half_null() -> None:
+    assert Task.from_dict(task_dict(look={"variant": "x" * 32})).to_dict()["look"] == {
+        "accent": None,
+        "variant": "x" * 32,
+    }
+
+
+@pytest.mark.parametrize(
+    ("look", "message"),
+    [
+        ("#123456", "task.look: must be an object"),
+        ({"accent": "#12345"}, "task.look.accent: must be a colour"),
+        ({"accent": "#1234567"}, "task.look.accent: must be a colour"),
+        ({"accent": "123456"}, "task.look.accent: must be a colour"),
+        ({"accent": "#12345g"}, "task.look.accent: must be a colour"),
+        ({"accent": "#123456\n"}, "task.look.accent: must be a colour"),
+        ({"accent": ""}, "task.look.accent: must be a colour"),
+        ({"accent": 123456}, "task.look.accent: must be a string"),
+        ({"variant": ""}, "task.look.variant: must not be empty"),
+        ({"variant": "   "}, "task.look.variant: must not be empty"),
+        ({"variant": 7}, "task.look.variant: must be a string"),
+        ({"variant": "x" * 33}, "task.look.variant: must be at most 32"),
+        ({"size": "big"}, "unknown field(s): size"),
+    ],
+)
+def test_invalid_looks(look: Any, message: str) -> None:
+    with pytest.raises(ValidationError) as caught:
+        Task.from_dict(task_dict(look=look))
+    assert message in str(caught.value)

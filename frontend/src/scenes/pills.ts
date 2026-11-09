@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { PillSlot, SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   clamp01,
   COLORS as C,
@@ -44,7 +45,8 @@ const SLOTS: ReadonlyArray<readonly [number, number]> = [
 
 const STALE_TOP = '#8f8a84'
 const STALE_BOTTOM = '#aaa497'
-export const MISSED_TOP = mix(C.coral, STALE_TOP, 0.5)
+const missedTop = (accent: string): string => mix(accent, STALE_TOP, 0.5)
+export const MISSED_TOP = missedTop(C.coral)
 export const MISSED_BOTTOM = mix(C.cream, STALE_BOTTOM, 0.5)
 export const MISSED_SHINE = 0.35
 const NEGLECT_AT = [0.15, 0.45, 0.75] as const
@@ -100,11 +102,11 @@ function well(x: number, y: number, popped: boolean): Art {
     : svg`<rect x=${x - 13.5} y=${y - 25.5} width="27" height="51" rx="13.5" fill=${C.metal} />`
 }
 
-function missed(x: number, y: number, fade: number): Art {
+function missed(x: number, y: number, top: string, fade: number): Art {
   return at(
     x,
     y,
-    capsule(mix(MISSED_TOP, STALE_TOP, fade), mix(MISSED_BOTTOM, STALE_BOTTOM, fade), MISSED_SHINE),
+    capsule(mix(top, STALE_TOP, fade), mix(MISSED_BOTTOM, STALE_BOTTOM, fade), MISSED_SHINE),
   )
 }
 
@@ -177,7 +179,8 @@ function spider(): Art {
 export function pills(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = pillsParts(scene, options?.day)
   const pack = mix(C.metalMid, '#8c8a80', parts.fade)
-  const pillTop = mix(C.coral, '#a59a90', parts.fade)
+  const accent = accentOf(scene, C.coral)
+  const pillTop = mix(accent, '#a59a90', parts.fade)
   const pillBottom = mix(C.cream, '#b3ad9e', parts.fade)
   const nextTop = mix(C.sun, '#a59a90', parts.fade)
   const slot = SLOTS[parts.day] ?? SLOTS[3] ?? ([84, 72] as const)
@@ -188,7 +191,9 @@ export function pills(scene: SceneView, options?: SceneOptions): TemplateResult 
     const cell = parts.cells[i]
     if (cell === 'taken') return [part('empty-well', well(x, y, true), i)]
     if (cell === 'missed')
-      return [part('missed-pill', [well(x, y, false), missed(x, y, parts.fade)], i)]
+      return [
+        part('missed-pill', [well(x, y, false), missed(x, y, missedTop(accent), parts.fade)], i),
+      ]
     return [part('pill', [well(x, y, false), at(x, y, capsule(pillTop, pillBottom))], i)]
   })
 

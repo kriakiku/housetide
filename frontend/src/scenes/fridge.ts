@@ -3,20 +3,24 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   COLORS as C,
   drop,
   face,
   fly,
   frame,
+  isDarkColor,
   mix,
   motion,
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -104,6 +108,24 @@ export function fridgeParts(scene: SceneView): FridgeParts {
 const BODY = '#86dcc8'
 const BODY_DARK = '#57b7a3'
 const BODY_LIGHT = '#aeeadb'
+interface BodyTone {
+  main: string
+  dark: string
+  light: string
+  ink: string
+}
+
+function bodyTone(scene: SceneView): BodyTone {
+  const main = accentOf(scene, BODY)
+  if (main === BODY) return { main, dark: BODY_DARK, light: BODY_LIGHT, ink: C.fly }
+  return {
+    main,
+    dark: shadeOf(main),
+    light: tintOf(main),
+    ink: isDarkColor(main) ? tintOf(main, 0.82) : mix(main, C.fly, 0.74),
+  }
+}
+
 const ICE = '#e4f4fd'
 const ICE_DARK = '#bcdff2'
 const SHELF = '#8fcbea'
@@ -485,10 +507,10 @@ function overflowPile(): Art {
   ])
 }
 
-function stuffed(parts: FridgeParts, decay: number): Art {
-  const body = mix(BODY, C.musty, decay * 0.55)
-  const shade = mix(BODY_DARK, C.mustyDark, decay * 0.6)
-  const light = mix(BODY_LIGHT, C.musty, decay * 0.5)
+function stuffed(parts: FridgeParts, decay: number, tone: BodyTone): Art {
+  const body = mix(tone.main, C.musty, decay * 0.55)
+  const shade = mix(tone.dark, C.mustyDark, decay * 0.6)
+  const light = mix(tone.light, C.musty, decay * 0.5)
   const back = mix(ICE, '#d6d39a', decay)
   const side = mix(ICE_DARK, '#b3ac70', decay)
   const lamp = mix('#fff3b0', '#c9bf6b', decay)
@@ -518,7 +540,7 @@ function stuffed(parts: FridgeParts, decay: number): Art {
     when(parts.mould >= 2, () => mouldy(119, TOP_FLOOR, parts.mould >= 3 ? 0.92 : 0.72)),
     when(parts.mould >= 3, shelfGoo),
     grille(),
-    face(120, 35, parts.mood, C.fly, 0.9),
+    face(120, 35, parts.mood, tone.ink, 0.9),
     fumes(parts),
   ]
 }
@@ -540,10 +562,10 @@ function fumes(parts: FridgeParts): Art {
   ]
 }
 
-function closed(parts: FridgeParts, decay: number): Art {
-  const body = mix(BODY, C.musty, decay * 0.6)
-  const shade = mix(BODY_DARK, C.mustyDark, decay * 0.7)
-  const light = mix(BODY_LIGHT, C.musty, decay * 0.5)
+function closed(parts: FridgeParts, decay: number, tone: BodyTone): Art {
+  const body = mix(tone.main, C.musty, decay * 0.6)
+  const shade = mix(tone.dark, C.mustyDark, decay * 0.7)
+  const light = mix(tone.light, C.musty, decay * 0.5)
   return [
     shadow(100, 184, 72),
     at(-20, 0, [
@@ -556,7 +578,7 @@ function closed(parts: FridgeParts, decay: number): Art {
       magnets(),
       grille(),
       when(parts.mould >= 1, () => gooDrips(MOULD, MOULD_DARK, parts.mould)),
-      face(120, 72, parts.mood, C.fly, 1.15),
+      face(120, 72, parts.mood, tone.ink, 1.15),
     ]),
     when(parts.mood === 'sleepy', () => part('snore', [zed(168, 34, 1, 1), zed(180, 19, 0.75, 2)])),
     when(parts.mould >= 3, () => mouldy(40, 184, 0.72)),
@@ -634,13 +656,13 @@ function cloth(): Art {
   )
 }
 
-function wiping(parts: FridgeParts): Art {
+function wiping(parts: FridgeParts, tone: BodyTone): Art {
   return [
     shadow(100, 184, 86),
-    doorShell(BODY, BODY_DARK, ICE),
+    doorShell(tone.main, tone.dark, ICE),
     bins(SHELF),
-    shell(BODY),
-    headerGloss(BODY_LIGHT),
+    shell(tone.main),
+    headerGloss(tone.light),
     interior(ICE, ICE_DARK, '#fff3b0'),
     shelves(SHELF),
     part('shine', [
@@ -656,7 +678,7 @@ function wiping(parts: FridgeParts): Art {
     bubble(146, 96, 4.5, 3),
     bubble(96, 132, 5, 4),
     grille(),
-    face(120, 35, parts.mood, C.fly, 0.9),
+    face(120, 35, parts.mood, tone.ink, 0.9),
     mist(),
     stenchLines(([[187, 66]] as const).slice(0, parts.stench)),
   ]
@@ -700,7 +722,7 @@ function fishbone(): Art {
   )
 }
 
-function emptied(parts: FridgeParts): Art {
+function emptied(parts: FridgeParts, tone: BodyTone): Art {
   const lines: ReadonlyArray<readonly [number, number]> = [
     [46, 104],
     [20, 124],
@@ -712,15 +734,15 @@ function emptied(parts: FridgeParts): Art {
   ]
   return [
     shadow(100, 184, 86),
-    doorShell(BODY, BODY_DARK, ICE),
+    doorShell(tone.main, tone.dark, ICE),
     bins(SHELF),
-    shell(BODY),
-    headerGloss(BODY_LIGHT),
+    shell(tone.main),
+    headerGloss(tone.light),
     interior(ICE, ICE_DARK, '#fff3b0'),
     shelves(SHELF),
     drawer(SHELF, []),
     grille(),
-    face(120, 35, parts.mood, C.fly, 0.9),
+    face(120, 35, parts.mood, tone.ink, 0.9),
     shadow(46, 184, 38, 0.4),
     binBag(),
     sparkle(120, 74, 1, 1),
@@ -730,14 +752,14 @@ function emptied(parts: FridgeParts): Art {
   ]
 }
 
-function fresh(parts: FridgeParts): Art {
+function fresh(parts: FridgeParts, tone: BodyTone): Art {
   return [
     shadow(100, 184, 86),
-    doorShell(BODY, BODY_DARK, '#f2fbff'),
+    doorShell(tone.main, tone.dark, '#f2fbff'),
     bins(SHELF),
     doorStock(),
-    shell(BODY),
-    headerGloss(BODY_LIGHT),
+    shell(tone.main),
+    headerGloss(tone.light),
     interior('#f4fcff', ICE, '#fff7c6'),
     svg`<path d="M104 58H136L166 158H74Z" fill="#fff7c6" opacity=".4" />`,
     shelves(SHELF),
@@ -750,7 +772,7 @@ function fresh(parts: FridgeParts): Art {
       carrot(160, 152, 18),
     ]),
     grille(),
-    face(120, 35, parts.mood, C.fly, 0.9),
+    face(120, 35, parts.mood, tone.ink, 0.9),
     sparkle(28, 30, 1, 1),
     sparkle(188, 34, 0.85, 2),
     sparkle(180, 130, 1.1, 3),
@@ -761,12 +783,13 @@ function fresh(parts: FridgeParts): Art {
 export function fridge(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = fridgeParts(scene)
   const decay = parts.mould / 3
+  const tone = bodyTone(scene)
   const views: Record<FridgeView, () => Art> = {
-    closed: () => closed(parts, decay),
-    stuffed: () => stuffed(parts, decay),
-    wiping: () => wiping(parts),
-    emptied: () => emptied(parts),
-    fresh: () => fresh(parts),
+    closed: () => closed(parts, decay, tone),
+    stuffed: () => stuffed(parts, decay, tone),
+    wiping: () => wiping(parts, tone),
+    emptied: () => emptied(parts, tone),
+    fresh: () => fresh(parts, tone),
   }
   return frame('fridge', scene, options, views[parts.view]())
 }

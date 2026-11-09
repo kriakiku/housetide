@@ -6,7 +6,7 @@ import './housetide.ts'
 import type { CardConfig } from './card.ts'
 import { COOLDOWN_MS } from './panel/live.ts'
 import { selectViews } from './panel/tile.ts'
-import { FakeSocket, fakeHass, payload, settle, task, view } from './test-fixtures.ts'
+import { FakeSocket, fakeHass, payload, settle, view } from './test-fixtures.ts'
 import type { FakeHassOptions } from './test-fixtures.ts'
 import type { StatePayload, TaskStatus } from './types.ts'
 
@@ -494,13 +494,10 @@ describe('home assistant card api', () => {
     expect(card.getGridOptions().min_columns).toBeGreaterThan(0)
   })
 
-  test('form lists known tasks and labels fields', async () => {
-    await withState(payload([], [task('a', { title: 'Aye' })]))
-    const form = HousetideCard.getConfigForm()
-    const names = form.schema.map((field) => (field as { name: string }).name)
-    expect(names).toEqual(['title', 'show', 'layout', 'tasks', 'animations'])
-    expect(JSON.stringify(form.schema)).toContain('Aye')
-    expect(form.computeLabel({ name: 'show' })).toBe('Show')
+  test('offers the visual editor and a stub', () => {
+    const editor = HousetideCard.getConfigElement()
+    expect(editor.localName).toBe('housetide-card-editor')
+    expect(editor).toBeInstanceOf(customElements.get('housetide-card-editor')!)
     expect(HousetideCard.getStubConfig().show).toBe('today')
   })
 })

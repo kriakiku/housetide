@@ -1,3 +1,4 @@
+import { HousetideCardEditor } from './card-editor.ts'
 import { HousetideCard } from './card.ts'
 import { HousetideEditor } from './panel/editor.ts'
 import { HousetideHistory } from './panel/history.ts'
@@ -7,6 +8,7 @@ import { HousetideToday } from './panel/today.ts'
 
 const ELEMENTS: Record<string, CustomElementConstructor> = {
   'housetide-card': HousetideCard,
+  'housetide-card-editor': HousetideCardEditor,
   'housetide-panel': HousetidePanel,
   'housetide-today': HousetideToday,
   'housetide-tasks': HousetideTasks,

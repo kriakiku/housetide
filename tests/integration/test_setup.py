@@ -14,7 +14,7 @@ from custom_components.housetide.manager import HousetideManager, get_manager
 from .conftest import daily
 
 COMPONENT = Path(__file__).resolve().parents[2] / "custom_components" / "housetide"
-MODULE_URL = f"{BUNDLE_URL}?v=0.1.0"
+MODULE_URL = f"{BUNDLE_URL}?v=0.2.0"
 
 
 async def test_config_flow_creates_one_entry(hass: HomeAssistant) -> None:

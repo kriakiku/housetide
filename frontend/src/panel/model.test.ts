@@ -7,19 +7,27 @@ import {
   addStage,
   dayGrid,
   entityOf,
+  DEFAULT_DEADLINE,
   formFromDraft,
+  isAnytimeForm,
+  withAnytime,
   isoToLocalInput,
   liveMatch,
   localInputToIso,
   localizeTemplate,
+  matchesFilter,
   middayOf,
   moveStage,
+  PICKER_GROUPS,
   removeStage,
   suggestEntities,
   taskFromForm,
+  templateOf,
+  templateTitle,
   triggerSentence,
   validateForm,
   weekdayIndex,
+  withScene,
 } from './model.ts'
 import type { StageForm } from './model.ts'
 
@@ -308,4 +316,171 @@ test('one formatter serves every date in a zone', () => {
   }
   expect(spy.mock.calls.length).toBeLessThanOrEqual(1)
   spy.mockRestore()
+})
+
+describe('look in the form', () => {
+  const draft = (look: TaskDraft['look'], scene: TaskDraft['scene'] = 'pet'): TaskDraft => ({
+    ...task('t', { scene }),
+    ...(look === undefined ? {} : { look }),
+  })
+
+  test('survives the round trip', () => {
+    const look = { accent: '#123456', variant: 'dog' }
+    expect(taskFromForm(formFromDraft(draft(look), ZONE, NOW), ZONE).look).toEqual(look)
+  })
+
+  test('is left out when nothing is set', () => {
+    const form = formFromDraft(draft(null), ZONE, NOW)
+    expect([form.accent, form.variant]).toEqual(['', ''])
+    expect(taskFromForm(form, ZONE)).not.toHaveProperty('look')
+  })
+
+  test('lowercases the accent so a swatch can match it', () => {
+    expect(formFromDraft(draft({ accent: '#ABCDEF' }), ZONE, NOW).accent).toBe('#abcdef')
+  })
+
+  test('changing scene drops a variant the new scene does not have', () => {
+    const form = formFromDraft(draft({ accent: '#123456', variant: 'dog' }), ZONE, NOW)
+    expect(withScene(form, 'pet').variant).toBe('dog')
+    const moved = withScene(form, 'laundry')
+    expect(moved.scene).toBe('laundry')
+    expect(moved.variant).toBe('')
+    expect(moved.accent).toBe('#123456')
+  })
+
+  test('keeps the variant while the scene still draws it', () => {
+    const form = formFromDraft(draft({ variant: 'white' }, 'laundry'), ZONE, NOW)
+    expect(withScene(form, 'laundry').variant).toBe('white')
+    expect(withScene(form, 'gym').variant).toBe('')
+  })
+})
+
+describe('pickers', () => {
+  const uk = createI18n('uk', { timeZone: ZONE, hour12: false })
+
+  test('every grouped scene has a template title and a scene label', () => {
+    for (const group of PICKER_GROUPS) {
+      expect(i18n.t(group.label)).not.toBe(uk.t(group.label))
+      for (const scene of group.scenes) {
+        expect(templateTitle(templateOf(scene), i18n)).toBeString()
+        expect(templateTitle(templateOf(scene), uk)).toBeString()
+        expect(uk.t(`scene_${scene}`)).toBeString()
+      }
+    }
+  })
+
+  test('the tide scene belongs to the one-off template', () => {
+    expect(templateOf('generic')).toBe('one_off')
+    expect(templateOf('gym')).toBe('gym')
+  })
+
+  test('filter matches every word, ignoring case', () => {
+    expect(matchesFilter('', 'anything')).toBe(true)
+    expect(matchesFilter('  ', 'anything')).toBe(true)
+    expect(matchesFilter('WASH car', 'Wash the', 'car')).toBe(true)
+    expect(matchesFilter('wash bike', 'Wash the car')).toBe(false)
+    expect(matchesFilter('АВТО', 'Помити авто')).toBe(true)
+  })
+
+  test('filter treats every apostrophe as the same character', () => {
+    const backup = 'Зробити резервну копію компʼютера'
+    expect(matchesFilter("комп'ютер", backup)).toBe(true)
+    expect(matchesFilter('комп’ютер', backup)).toBe(true)
+    expect(matchesFilter('компʼютер', "комп'ютера")).toBe(true)
+    expect(matchesFilter("здоров'я", 'Здоровʼя')).toBe(true)
+    expect(matchesFilter("комп'ютер", 'Комп ютер')).toBe(false)
+  })
+
+  test('new stages are localised', () => {
+    const source: TaskDraft = {
+      ...task('ev', { scene: 'ev' }),
+      stages: [
+        { ...task('ev').stages[0]!, id: 'plug_in', role: 'todo' },
+        { ...task('ev').stages[0]!, id: 'charge_ev', role: 'running' },
+      ],
+    }
+    const { title, stages } = localizeTemplate('ev', source, uk)
+    expect(title).toBe('Зарядити авто')
+    expect(stages.map((item) => [item.title, item.action])).toEqual([
+      ['Підключити', 'Підключено'],
+      ['Заряджається', 'Заряджено'],
+    ])
+  })
+})
+
+describe('any-time form', () => {
+  const schedules = [
+    { type: 'daily', time: '20:00', anytime: true },
+    { type: 'weekly', weekdays: [1, 3], time: '20:00', anytime: true },
+    { type: 'interval', every_days: 3, time: '20:00', anchor: 'schedule', anytime: true },
+  ] as const
+
+  for (const schedule of schedules) {
+    test(`${schedule.type} round-trips`, () => {
+      const source: TaskDraft = { ...task('x'), schedule: { ...schedule } as TaskDraft['schedule'] }
+      const form = formFromDraft(source, ZONE, NOW)
+      expect(form.anytime).toBe(true)
+      expect(taskFromForm(form, ZONE).schedule).toEqual(source.schedule)
+    })
+  }
+
+  test('a timed schedule has no flag', () => {
+    const source: TaskDraft = { ...task('x'), schedule: { type: 'daily', time: '08:00' } }
+    const form = formFromDraft(source, ZONE, NOW)
+    expect(form.anytime).toBe(false)
+    expect(taskFromForm(form, ZONE).schedule).toEqual({ type: 'daily', time: '08:00' })
+  })
+
+  test('turning on defaults the deadline, turning off puts a time back', () => {
+    const form = {
+      ...formFromDraft(task('x'), ZONE, NOW),
+      schedule: 'daily' as const,
+      time: '10:00',
+    }
+    const on = withAnytime(form, true)
+    expect(on).toMatchObject({ anytime: true, time: DEFAULT_DEADLINE })
+    expect(withAnytime(on, false)).toMatchObject({ anytime: false, time: '09:00' })
+    expect(withAnytime({ ...on, time: '18:00' }, false).time).toBe('18:00')
+  })
+
+  test('turning on swaps the untouched grace for a daytime window and back', () => {
+    const form = {
+      ...formFromDraft(task('x'), ZONE, NOW),
+      schedule: 'daily' as const,
+      grace: '24',
+    }
+    const on = withAnytime(form, true)
+    expect(on.grace).toBe('6')
+    expect(withAnytime(on, false).grace).toBe('24')
+    const custom = withAnytime({ ...form, grace: '3' }, true)
+    expect(custom.grace).toBe('3')
+    expect(withAnytime(custom, false).grace).toBe('3')
+  })
+
+  test('an empty deadline is valid and saved as the default', () => {
+    const form = {
+      ...formFromDraft(task('x'), ZONE, NOW),
+      schedule: 'daily' as const,
+      anytime: true,
+      time: '',
+    }
+    expect(validateForm(form, ZONE).time).toBeUndefined()
+    expect(taskFromForm(form, ZONE).schedule).toEqual({
+      type: 'daily',
+      time: DEFAULT_DEADLINE,
+      anytime: true,
+    })
+    expect(validateForm({ ...form, anytime: false }, ZONE).time).toBeDefined()
+  })
+
+  test('a one-off drops the flag', () => {
+    const form = {
+      ...formFromDraft(task('x'), ZONE, NOW),
+      schedule: 'once' as const,
+      anytime: true,
+      due: '2026-12-24T18:30',
+    }
+    expect(isAnytimeForm(form)).toBe(false)
+    expect('anytime' in taskFromForm(form, ZONE).schedule).toBe(false)
+  })
 })

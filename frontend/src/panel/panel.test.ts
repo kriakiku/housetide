@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 
 // oxlint-disable-next-line import/no-unassigned-import
 import '../housetide.ts'
+import { ACCENTS } from '../scenes/looks.ts'
 import {
   entity,
   FakeSocket,
@@ -414,6 +415,134 @@ describe('tasks list', () => {
   })
 })
 
+describe('picking a template', () => {
+  test('groups under headings and keeps the template hooks', async () => {
+    const panel = await mount(socketWith(payload([])), '/tasks')
+    const root = tasks(panel)
+    expect([...root.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+      'Home',
+      'Life',
+    ])
+    one(root, '[data-template="laundry"]')
+    one(root, '[data-template="one_off"]')
+  })
+
+  test('the filter narrows the list and hides empty groups', async () => {
+    const panel = await mount(socketWith(payload([])), '/tasks')
+    const root = tasks(panel)
+    type(root, 'template-filter', 'laund')
+    await settle(panel)
+    one(root, '[data-template="laundry"]')
+    expect(root.querySelector('[data-template="one_off"]')).toBeNull()
+    expect(root.querySelectorAll('h3').length).toBe(1)
+  })
+
+  test('the filter matches a group heading', async () => {
+    const panel = await mount(socketWith(payload([])), '/tasks')
+    const root = tasks(panel)
+    type(root, 'template-filter', 'life')
+    await settle(panel)
+    expect(root.querySelector('[data-template="laundry"]')).toBeNull()
+    one(root, '[data-template="one_off"]')
+  })
+
+  test('says so when nothing matches', async () => {
+    const panel = await mount(socketWith(payload([])), '/tasks')
+    const root = tasks(panel)
+    type(root, 'template-filter', 'zzzz')
+    await settle(panel)
+    expect(root.querySelector('[data-template]')).toBeNull()
+    expect(one(root, '[data-part="no-templates"]').textContent).toContain('Nothing matches')
+  })
+})
+
+describe('scene picker and look', () => {
+  const preview = (form: ShadowRoot): string => one(form, '[data-part="look-preview"]').innerHTML
+
+  function colour(form: ShadowRoot, value: string): void {
+    const input = one<HTMLInputElement>(form, '[data-field="look-accent"]')
+    input.value = value
+    input.dispatchEvent(new Event('input'))
+  }
+
+  test('scenes sit under group headings and can be filtered', async () => {
+    const { panel, form } = await openTemplate('one_off')
+    const headings = (): Array<string | null> =>
+      [...form.querySelectorAll('.scene-group')].map((heading) => heading.textContent)
+    expect(headings()).toEqual([
+      'Home',
+      'Pets and plants',
+      'Health',
+      'Car',
+      'Learning and work',
+      'Life',
+    ])
+    expect(form.querySelectorAll('button[data-scene]').length).toBe(37)
+    type(form, 'scene-filter', 'car')
+    await settle(panel)
+    expect(headings()).toContain('Car')
+    expect(form.querySelector('button[data-scene="pills"]')).toBeNull()
+    one(form, 'button[data-scene="carwash"]')
+  })
+
+  test('nothing set leaves the look out of the payload', async () => {
+    const { socket, panel, form } = await openTemplate('one_off')
+    await save(panel, form)
+    expect(created(socket)).not.toHaveProperty('look')
+  })
+
+  test('a swatch and a variant reach the payload and the preview', async () => {
+    const { socket, panel, form } = await openTemplate('one_off')
+    click(form, 'button[data-scene="pet"]')
+    await settle(panel)
+    const cat = preview(form)
+    click(form, '[data-variant="dog"]')
+    await settle(panel)
+    const dog = preview(form)
+    expect(dog).not.toBe(cat)
+    click(form, `[data-accent="${ACCENTS[3]?.color}"]`)
+    await settle(panel)
+    expect(preview(form)).not.toBe(dog)
+    expect(one(form, `[data-accent="${ACCENTS[3]?.color}"]`).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    await save(panel, form)
+    expect(created(socket).look).toEqual({ accent: ACCENTS[3]?.color ?? '', variant: 'dog' })
+  })
+
+  test('the free colour and the default choice', async () => {
+    const { socket, panel, form } = await openTemplate('laundry')
+    type(form, 'stages.0.entity', 'sensor.washer_power')
+    type(form, 'stages.1.entity', 'sensor.washer_power')
+    colour(form, '#123456')
+    await settle(panel)
+    expect(one(form, '[data-accent=""]').getAttribute('aria-pressed')).toBe('false')
+    click(form, '[data-accent=""]')
+    await settle(panel)
+    expect(one(form, '[data-accent=""]').getAttribute('aria-pressed')).toBe('true')
+    colour(form, '#abcdef')
+    await settle(panel)
+    await save(panel, form)
+    expect(created(socket).look).toEqual({ accent: '#abcdef', variant: null })
+  })
+
+  test('the variant control follows the scene and a stale variant is dropped', async () => {
+    const { socket, panel, form } = await openTemplate('one_off')
+    expect(form.querySelector('[data-variant]')).toBeNull()
+    click(form, 'button[data-scene="laundry"]')
+    await settle(panel)
+    expect(form.querySelectorAll('[data-variant]').length).toBe(3)
+    expect(one(form, '[data-variant="colored"]').getAttribute('aria-pressed')).toBe('true')
+    click(form, '[data-variant="black"]')
+    await settle(panel)
+    click(form, 'button[data-scene="pet"]')
+    await settle(panel)
+    expect(one(form, '[data-variant="cat"]').getAttribute('aria-pressed')).toBe('true')
+    await save(panel, form)
+    expect(created(socket)).not.toHaveProperty('look')
+  })
+})
+
 describe('non admins', () => {
   const state = payload([view('due', { task_id: 'a' })], [task('a')])
 
@@ -639,6 +768,34 @@ describe('editor payloads', () => {
     expect(socket.of('housetide/task/delete')).toEqual([
       { type: 'housetide/task/delete', task_id: 'a' },
     ])
+  })
+})
+
+describe('any-time schedule', () => {
+  test('the switch relabels the fields and saves a deadline', async () => {
+    const { socket, panel, form } = await openTemplate('laundry')
+    type(form, 'stages.0.entity', 'sensor.washer_power')
+    type(form, 'stages.1.entity', 'sensor.washer_power')
+    expect(form.textContent).toContain('Grace period (hours)')
+    toggle(form, 'anytime', true)
+    await settle(panel)
+    expect(form.textContent).toContain('Deadline')
+    expect(form.textContent).toContain('Nag before the deadline (hours)')
+    expect(form.textContent).not.toContain('Grace period (hours)')
+    expect(one<HTMLInputElement>(form, '[data-field="time"]').value).toBe('23:59')
+    await save(panel, form)
+    expect(created(socket).schedule).toEqual({
+      type: 'interval',
+      every_days: 7,
+      time: '23:59',
+      anchor: 'completion',
+      anytime: true,
+    })
+  })
+
+  test('a one-off has no switch', async () => {
+    const { form } = await openTemplate('one_off')
+    expect(form.querySelector('[data-field="anytime"]')).toBeNull()
   })
 })
 

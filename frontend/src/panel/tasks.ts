@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing } from 'lit'
 import type { PropertyDeclarations, PropertyValues, TemplateResult } from 'lit'
+import { guard } from 'lit/directives/guard.js'
 import { repeat } from 'lit/directives/repeat.js'
 
 import { fetchTemplates, updateSettings } from '../api.ts'
@@ -8,27 +9,17 @@ import { renderScene } from '../scenes/index.ts'
 import { controls, sceneStyles, tokens } from '../styles.ts'
 import type { HomeAssistant, StatePayload, Task, TaskDraft, TaskView } from '../types.ts'
 import { errorMessage, hassChanged, isHass, localeOf } from './live.ts'
-import { localizeTemplate, templateTitle } from './model.ts'
+import {
+  localizeTemplate,
+  matchesFilter,
+  PICKER_GROUPS,
+  templateOf,
+  templateTitle,
+} from './model.ts'
 import { icon, iconStyles } from './tile.ts'
 
 type Templates = Record<string, TaskDraft>
 
-const TEMPLATE_ORDER = [
-  'laundry',
-  'pills',
-  'plant',
-  'teeth',
-  'bed',
-  'dishes',
-  'trash',
-  'vacuum',
-  'pet',
-  'bathroom',
-  'fridge',
-  'window',
-  'water',
-  'one_off',
-]
 const MAX_RETENTION_DAYS = 36_500
 
 export class HousetideTasks extends LitElement {
@@ -39,6 +30,7 @@ export class HousetideTasks extends LitElement {
     editing: { state: true },
     templates: { state: true },
     templateError: { state: true },
+    templateFilter: { state: true },
     retention: { state: true },
     settingsError: { state: true },
     settingsBusy: { state: true },
@@ -67,6 +59,17 @@ export class HousetideTasks extends LitElement {
 
       section {
         margin-bottom: 18px;
+      }
+
+      .template-filter {
+        margin-bottom: 8px;
+      }
+
+      h3 {
+        margin: 12px 0 6px;
+        color: var(--ht-muted);
+        font-size: 0.8125rem;
+        font-weight: 600;
       }
 
       .templates {
@@ -233,6 +236,7 @@ export class HousetideTasks extends LitElement {
   declare editing: { source: TaskDraft; title: string } | null
   declare templates: Templates | null
   declare templateError: boolean
+  declare templateFilter: string
   declare retention: string | null
   declare settingsError: string | null
   declare settingsBusy: boolean
@@ -246,6 +250,7 @@ export class HousetideTasks extends LitElement {
     this.editing = null
     this.templates = null
     this.templateError = false
+    this.templateFilter = ''
     this.retention = null
     this.settingsError = null
     this.settingsBusy = false
@@ -310,7 +315,19 @@ export class HousetideTasks extends LitElement {
   private renderTemplates(i18n: I18n): TemplateResult | typeof nothing {
     if (!this.isAdmin) return nothing
     const templates = this.templates
-    const names = templates ? TEMPLATE_ORDER.filter((name) => Object.hasOwn(templates, name)) : []
+    const groups = PICKER_GROUPS.map((group) => {
+      const label = i18n.t(group.label)
+      const entries = group.scenes.flatMap((scene) => {
+        const name = templateOf(scene)
+        const draft = templates && Object.hasOwn(templates, name) ? templates[name] : undefined
+        if (!draft) return []
+        const title = templateTitle(name, i18n) ?? draft.title
+        return matchesFilter(this.templateFilter, title, draft.title, name, label)
+          ? [{ name, draft, title }]
+          : []
+      })
+      return { label, entries }
+    }).filter((group) => group.entries.length > 0)
     return html`<section>
       <h2>${i18n.t('action_new_task')} · ${i18n.t('template_prompt')}</h2>
       ${
@@ -327,27 +344,61 @@ export class HousetideTasks extends LitElement {
               </button>`
           : nothing
       }
-      <div class="templates">
-        ${names.map((name) => {
-          const draft = templates?.[name]
-          if (!draft) return nothing
-          return html`<button
-            class="template"
-            data-template=${name}
-            @click=${(): void => {
-              void this.openTemplate(name, draft, i18n)
-            }}
-          >
-            <span class="thumb">
-              ${renderScene(
-                { name: draft.scene, state: 'accumulating', fill: 0.7, stink: 0, progress: 0 },
-                { animations: false },
+      ${
+        templates
+          ? html`<input
+              class="ht-input template-filter"
+              type="search"
+              data-field="template-filter"
+              placeholder=${i18n.t('picker_filter')}
+              aria-label=${i18n.t('picker_filter')}
+              .value=${this.templateFilter}
+              @input=${(event: Event): void => {
+                const { target } = event
+                if (target instanceof HTMLInputElement) this.templateFilter = target.value
+              }}
+            />`
+          : nothing
+      }
+      ${groups.map(
+        (group) =>
+          html`<h3>${group.label}</h3>
+            <div class="templates">
+              ${repeat(
+                group.entries,
+                (entry) => entry.name,
+                ({ name, draft, title }) =>
+                  html`<button
+                    class="template"
+                    data-template=${name}
+                    @click=${(): void => {
+                      void this.openTemplate(name, draft, i18n)
+                    }}
+                  >
+                    <span class="thumb">
+                      ${guard([draft.scene], () =>
+                        renderScene(
+                          {
+                            name: draft.scene,
+                            state: 'accumulating',
+                            fill: 0.7,
+                            stink: 0,
+                            progress: 0,
+                          },
+                          { animations: false },
+                        ),
+                      )}
+                    </span>
+                    <span>${title}</span>
+                  </button>`,
               )}
-            </span>
-            <span>${templateTitle(name, i18n) ?? draft.title}</span>
-          </button>`
-        })}
-      </div>
+            </div>`,
+      )}
+      ${
+        templates && groups.length === 0
+          ? html`<p class="note" data-part="no-templates">${i18n.t('picker_empty')}</p>`
+          : nothing
+      }
     </section>`
   }
 
@@ -362,7 +413,14 @@ export class HousetideTasks extends LitElement {
     >
       <span class="thumb">
         ${renderScene(
-          view?.scene ?? { name: task.scene, state: 'resting', fill: 0, stink: 0, progress: 0 },
+          view?.scene ?? {
+            name: task.scene,
+            state: 'resting',
+            fill: 0,
+            stink: 0,
+            progress: 0,
+            ...(task.look ? { look: task.look } : {}),
+          },
           { animations: false },
         )}
       </span>

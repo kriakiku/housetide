@@ -1,4 +1,5 @@
 import type { I18n, MessageKey } from '../i18n.ts'
+import { variantsFor } from '../scenes/looks.ts'
 import type {
   HassEntityState,
   IntervalAnchor,
@@ -7,6 +8,7 @@ import type {
   Schedule,
   Stage,
   StageRole,
+  SceneLook,
   TaskDraft,
   Trigger,
 } from '../types.ts'
@@ -31,6 +33,8 @@ export interface TaskForm {
   title: string
   icon: string
   color: string
+  accent: string
+  variant: string
   notes: string
   assignee: string
   enabled: boolean
@@ -41,6 +45,7 @@ export interface TaskForm {
   schedule: ScheduleType
   due: string
   time: string
+  anytime: boolean
   weekdays: number[]
   every_days: string
   anchor: IntervalAnchor
@@ -59,6 +64,10 @@ const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const WHOLE_RE = /^\d+$/
 const LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
 const DEAD_STATES = new Set(['unknown', 'unavailable'])
+export const DEFAULT_DEADLINE = '23:59'
+const DEFAULT_TIME = '09:00'
+const DEFAULT_GRACE = '24'
+const ANYTIME_GRACE = '6'
 
 interface ZonedParts {
   year: number
@@ -188,6 +197,8 @@ export function formFromDraft(draft: TaskDraft, timeZone: string, now: Date): Ta
     title: draft.title,
     icon: draft.icon ?? '',
     color: draft.color ?? '',
+    accent: draft.look?.accent?.toLowerCase() ?? '',
+    variant: draft.look?.variant ?? '',
     notes: draft.notes ?? '',
     assignee: draft.assignee ?? '',
     enabled: draft.enabled,
@@ -200,11 +211,34 @@ export function formFromDraft(draft: TaskDraft, timeZone: string, now: Date): Ta
       schedule.type === 'once'
         ? isoToLocalInput(schedule.due, timeZone)
         : tomorrowMorning(now, timeZone),
-    time: schedule.type === 'once' ? '09:00' : schedule.time,
+    time: schedule.type === 'once' ? DEFAULT_TIME : schedule.time,
+    anytime: schedule.type !== 'once' && schedule.anytime === true,
     weekdays: schedule.type === 'weekly' ? [...schedule.weekdays] : [weekdayIndex(now, timeZone)],
     every_days: schedule.type === 'interval' ? String(schedule.every_days) : '7',
     anchor: schedule.type === 'interval' ? schedule.anchor : 'completion',
     stages: draft.stages.map((stage) => stageForm(stage)),
+  }
+}
+
+export function withScene(form: TaskForm, scene: SceneName): TaskForm {
+  const keep = variantsFor(scene).some((variant) => variant === form.variant)
+  return { ...form, scene, variant: keep ? form.variant : '' }
+}
+
+export function isAnytimeForm(form: TaskForm): boolean {
+  return form.anytime && form.schedule !== 'once'
+}
+
+export function withAnytime(form: TaskForm, anytime: boolean): TaskForm {
+  if (anytime) {
+    const grace = form.grace === DEFAULT_GRACE ? ANYTIME_GRACE : form.grace
+    return { ...form, anytime, time: DEFAULT_DEADLINE, grace }
+  }
+  return {
+    ...form,
+    anytime,
+    time: form.time === DEFAULT_DEADLINE ? DEFAULT_TIME : form.time,
+    grace: form.grace === ANYTIME_GRACE ? DEFAULT_GRACE : form.grace,
   }
 }
 
@@ -278,7 +312,7 @@ export function validateForm(form: TaskForm, timeZone: string): FormErrors {
   checkWhole(errors, 'grace', form.grace, 0)
   if (form.schedule === 'once') {
     if (!localInputToIso(form.due, timeZone)) errors.due = { key: 'error_datetime' }
-  } else if (!TIME_RE.test(form.time)) {
+  } else if (!TIME_RE.test(form.time) && !(form.anytime && form.time.trim() === '')) {
     errors.time = { key: 'error_time' }
   }
   if (form.schedule === 'weekly' && form.weekdays.length === 0) {
@@ -296,24 +330,34 @@ function optional(text: string): string | null {
   return trimmed === '' ? null : trimmed
 }
 
+function lookFromForm(form: TaskForm): { look?: SceneLook } {
+  const accent = optional(form.accent)
+  const variant = optional(form.variant)
+  return accent === null && variant === null ? {} : { look: { accent, variant } }
+}
+
 function scheduleFromForm(form: TaskForm, timeZone: string): Schedule {
+  const anytime = form.anytime ? { anytime: true } : {}
+  const time = form.anytime && form.time.trim() === '' ? DEFAULT_DEADLINE : form.time
   switch (form.schedule) {
     case 'once':
       return { type: 'once', due: localInputToIso(form.due, timeZone) ?? form.due }
     case 'daily':
-      return { type: 'daily', time: form.time }
+      return { type: 'daily', time, ...anytime }
     case 'weekly':
       return {
         type: 'weekly',
         weekdays: [...form.weekdays].toSorted((a, b) => a - b),
-        time: form.time,
+        time,
+        ...anytime,
       }
     default:
       return {
         type: 'interval',
         every_days: Number(form.every_days.trim()),
-        time: form.time,
+        time,
         anchor: form.anchor,
+        ...anytime,
       }
   }
 }
@@ -356,8 +400,56 @@ export function taskFromForm(form: TaskForm, timeZone: string): TaskDraft {
     stages: form.stages.map((stage) => stageFromForm(stage)),
     clean_for_minutes: Number(form.clean_for.trim()),
     grace_hours: Number(form.grace.trim()),
+    ...lookFromForm(form),
   }
   return form.id === null ? draft : { ...draft, id: form.id }
+}
+
+export interface PickerGroup {
+  label: MessageKey
+  scenes: readonly SceneName[]
+}
+
+export const PICKER_GROUPS: readonly PickerGroup[] = [
+  {
+    label: 'group_home',
+    scenes: [
+      'laundry',
+      'bed',
+      'dishes',
+      'trash',
+      'vacuum',
+      'bathroom',
+      'fridge',
+      'window',
+      'cooler',
+      'filter',
+      'lawn',
+    ],
+  },
+  { label: 'group_pets', scenes: ['pet', 'plant'] },
+  { label: 'group_health', scenes: ['pills', 'teeth', 'water', 'gym', 'pool', 'yoga', 'run'] },
+  { label: 'group_car', scenes: ['ev', 'fuel', 'carwash'] },
+  { label: 'group_learning', scenes: ['study', 'language', 'coding', 'slides', 'book', 'backup'] },
+  {
+    label: 'group_life',
+    scenes: ['groceries', 'cooking', 'bills', 'call', 'journal', 'music', 'owl', 'generic'],
+  },
+]
+
+export function templateOf(scene: SceneName): string {
+  return scene === 'generic' ? 'one_off' : scene
+}
+
+function foldForFilter(text: string): string {
+  return text.toLocaleLowerCase().replace(/[\u2019\u02BC]/g, "'")
+}
+
+export function matchesFilter(query: string, ...texts: string[]): boolean {
+  const haystack = foldForFilter(texts.join(' '))
+  return foldForFilter(query.trim())
+    .split(/\s+/)
+    .every((token) => haystack.includes(token))
 }
 
 export interface EntitySuggestion {
@@ -477,6 +569,29 @@ const TEMPLATE_TITLES: Record<string, MessageKey> = {
   fridge: 'template_fridge',
   window: 'template_window',
   water: 'template_water',
+  cooler: 'template_cooler',
+  gym: 'template_gym',
+  pool: 'template_pool',
+  ev: 'template_ev',
+  fuel: 'template_fuel',
+  study: 'template_study',
+  language: 'template_language',
+  coding: 'template_coding',
+  slides: 'template_slides',
+  book: 'template_book',
+  filter: 'template_filter',
+  bills: 'template_bills',
+  yoga: 'template_yoga',
+  run: 'template_run',
+  groceries: 'template_groceries',
+  cooking: 'template_cooking',
+  call: 'template_call',
+  journal: 'template_journal',
+  lawn: 'template_lawn',
+  music: 'template_music',
+  backup: 'template_backup',
+  carwash: 'template_carwash',
+  owl: 'template_owl',
   one_off: 'template_one_off',
 }
 
@@ -497,6 +612,33 @@ const STAGE_TEXT: Record<string, readonly [MessageKey, MessageKey]> = {
   tidy: ['template_stage_tidy', 'template_action_tidy'],
   wipe_glass: ['template_stage_wipe_glass', 'template_action_wipe_glass'],
   drink: ['template_stage_drink', 'template_action_drink'],
+  order_water: ['template_stage_order_water', 'template_action_order_water'],
+  await_water: ['template_stage_await_water', 'template_action_await_water'],
+  work_out: ['template_stage_work_out', 'template_action_work_out'],
+  swim: ['template_stage_swim', 'template_action_swim'],
+  plug_in: ['template_stage_plug_in', 'template_action_plug_in'],
+  charge_ev: ['template_stage_charge_ev', 'template_action_charge_ev'],
+  fill_up: ['template_stage_fill_up', 'template_action_fill_up'],
+  study_session: ['template_stage_study_session', 'template_action_study_session'],
+  practise_language: ['template_stage_practise_language', 'template_action_practise_language'],
+  write_code: ['template_stage_write_code', 'template_action_write_code'],
+  draft_slides: ['template_stage_draft_slides', 'template_action_draft_slides'],
+  rehearse: ['template_stage_rehearse', 'template_action_rehearse'],
+  read_book: ['template_stage_read_book', 'template_action_read_book'],
+  replace_filter: ['template_stage_replace_filter', 'template_action_replace_filter'],
+  pay_bills: ['template_stage_pay_bills', 'template_action_pay_bills'],
+  confirm_payment: ['template_stage_confirm_payment', 'template_action_confirm_payment'],
+  stretch: ['template_stage_stretch', 'template_action_stretch'],
+  go_run: ['template_stage_go_run', 'template_action_go_run'],
+  shop: ['template_stage_shop', 'template_action_shop'],
+  cook: ['template_stage_cook', 'template_action_cook'],
+  call_family: ['template_stage_call_family', 'template_action_call_family'],
+  write_journal: ['template_stage_write_journal', 'template_action_write_journal'],
+  mow: ['template_stage_mow', 'template_action_mow'],
+  practise_music: ['template_stage_practise_music', 'template_action_practise_music'],
+  back_up: ['template_stage_back_up', 'template_action_back_up'],
+  wash_car: ['template_stage_wash_car', 'template_action_wash_car'],
+  owl_do: ['template_stage_owl_do', 'template_action_owl_do'],
 }
 
 export function templateTitle(name: string, i18n: I18n): string | null {

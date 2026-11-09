@@ -3,6 +3,7 @@ import type { SVGTemplateResult, TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   clamp01,
   COLORS as C,
@@ -14,9 +15,11 @@ import {
   motion,
   part,
   reached,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -318,9 +321,21 @@ function foamHat(): Art {
   )
 }
 
-function duckArt(mood: DuckMood, dim: boolean, hat: boolean): Art {
-  const yellow = dim ? mix(C.sun, '#262c49', 0.3) : C.sun
-  const wing = dim ? mix(C.sunDark, '#262c49', 0.3) : C.sunDark
+interface DuckTone {
+  main: string
+  dark: string
+  cheek: string
+}
+
+function duckTone(scene: SceneView): DuckTone {
+  const main = accentOf(scene, C.sun)
+  if (main === C.sun) return { main, dark: C.sunDark, cheek: C.pink }
+  return { main, dark: shadeOf(main), cheek: tintOf(main, 0.55) }
+}
+
+function duckArt(mood: DuckMood, dim: boolean, hat: boolean, tone: DuckTone): Art {
+  const yellow = dim ? mix(tone.main, '#262c49', 0.3) : tone.main
+  const wing = dim ? mix(tone.dark, '#262c49', 0.3) : tone.dark
   const beak = dim ? mix(BEAK, '#262c49', 0.3) : BEAK
   const beakDark = dim ? mix(C.coralDark, '#262c49', 0.3) : C.coralDark
   return [
@@ -331,7 +346,7 @@ function duckArt(mood: DuckMood, dim: boolean, hat: boolean): Art {
     duckEyes(mood),
     when(
       mood === 'happy',
-      () => svg`<circle cx="6" cy="-27" r="3" fill=${C.pink} opacity=".75" />`,
+      () => svg`<circle cx="6" cy="-27" r="3" fill=${tone.cheek} opacity=".75" />`,
     ),
     when(hat, foamHat),
   ]
@@ -370,7 +385,7 @@ function panic(): Art {
   ])
 }
 
-function duck(parts: BathroomParts): Art {
+function duck(parts: BathroomParts, tone: DuckTone): Art {
   const hat = parts.foam > 0
   const lift = parts.foam === 2 ? -2 : 0
   const tilt: Record<DuckMood, number> = {
@@ -381,7 +396,7 @@ function duck(parts: BathroomParts): Art {
     horrified: -12,
     happy: 0,
   }
-  const art = duckArt(parts.duck, parts.dim, hat)
+  const art = duckArt(parts.duck, parts.dim, hat, tone)
   const moving =
     parts.duck === 'happy'
       ? motion('bob', art)
@@ -584,7 +599,7 @@ export function bathroom(scene: SceneView, options?: SceneOptions): TemplateResu
     when(parts.foam > 0, () => foamDrips(parts.foam)),
     when(parts.sludge > 0, () => sludge(parts.sludge)),
     face(100, 146, parts.mood, parts.dim ? mix(FACE_INK, '#262c49', 0.3) : FACE_INK, 1.05),
-    duck(parts),
+    duck(parts, duckTone(scene)),
     when(parts.duck === 'asleep', snooze),
     when(parts.duck === 'horrified', panic),
     when(parts.bottle === 'waiting', () => [waitingBottle(), plea()]),

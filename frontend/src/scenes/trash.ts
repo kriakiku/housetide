@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   clamp01,
   COLORS as C,
@@ -13,6 +14,7 @@ import {
   motion,
   part,
   reached,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
@@ -250,17 +252,31 @@ function ooze(level: number): Art {
   )
 }
 
+interface BinTone {
+  body: string
+  shade: string
+  ink: string
+}
+
+function binToneOf(scene: SceneView): BinTone {
+  const body = accentOf(scene, C.mint)
+  return body === C.mint
+    ? { body, shade: C.mintDark, ink: FACE_INK }
+    : { body, shade: shadeOf(body), ink: shadeOf(body, 0.8) }
+}
+
 interface BinOptions {
+  tone: BinTone
   mood: Mood
   grime: number
   shine?: boolean
   draped?: boolean
 }
 
-function binBody({ mood, grime, shine = false, draped = false }: BinOptions): Art {
+function binBody({ tone, mood, grime, shine = false, draped = false }: BinOptions): Art {
   const decay = (grime / 3) * 0.72
-  const body = mix(C.mint, C.musty, decay)
-  const shade = mix(C.mintDark, C.mustyDark, decay)
+  const body = mix(tone.body, C.musty, decay)
+  const shade = mix(tone.shade, C.mustyDark, decay)
   return [
     part('body', [
       svg`<path d="M53 98H147L140 173Q139 180 132 180H68Q61 180 60 173Z" fill=${body} />`,
@@ -286,7 +302,7 @@ function binBody({ mood, grime, shine = false, draped = false }: BinOptions): Ar
         svg`<path d="M56 96H104" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".5" />`,
       ]),
     ),
-    face(100, 136, mood, FACE_INK, 1.16),
+    face(100, 136, mood, tone.ink, 1.16),
   ]
 }
 
@@ -298,8 +314,8 @@ function placed(cx: number, scale: number, art: Art): Art {
   return at(cx, 181, at(-100, -181, art), 0, scale)
 }
 
-function lidColor(grime: number): string {
-  return mix(C.mint, C.musty, (grime / 3) * 0.72)
+function lidColor(grime: number, tone: BinTone): string {
+  return mix(tone.body, C.musty, (grime / 3) * 0.72)
 }
 
 function raccoonArt(): Art {
@@ -370,35 +386,35 @@ function nuisances(parts: TrashParts): Art {
   ]
 }
 
-function filling(parts: TrashParts): Art {
+function filling(parts: TrashParts, tone: BinTone): Art {
   return [
     shadow(100, 182, 64),
     ooze(parts.grime),
     when(parts.raccoon, raccoonArt),
     opening(),
     pileArt(parts.pile),
-    binBody({ mood: parts.mood, grime: parts.grime }),
+    binBody({ tone, mood: parts.mood, grime: parts.grime }),
     when(parts.raccoon, paw),
-    hingedLid(parts.lid, lidColor(parts.grime)),
+    hingedLid(parts.lid, lidColor(parts.grime, tone)),
     when(parts.bone, () => fishbone(30, 176, 6, 0.62)),
     when(parts.mood === 'sleepy', snooze),
     nuisances(parts),
   ]
 }
 
-function heapView(parts: TrashParts): Art {
+function heapView(parts: TrashParts, tone: BinTone): Art {
   return [
     shadow(100, 182, 70),
     ooze(parts.grime),
     when(parts.raccoon, raccoonArt),
     opening(),
     heap(parts.bone),
-    binBody({ mood: parts.mood, grime: parts.grime }),
+    binBody({ tone, mood: parts.mood, grime: parts.grime }),
     when(parts.raccoon, paw),
     at(72, 104, motion('sway', banana(0, 0, 8, 0.8))),
     part(
       'lid',
-      at(103, 52, motion('sway', at(44, -2, lidArt(lidColor(parts.grime)), 0, 0.84), 2), -9),
+      at(103, 52, motion('sway', at(44, -2, lidArt(lidColor(parts.grime, tone)), 0, 0.84), 2), -9),
     ),
     part('spill', [crumple(30, 172, 14, 0.82), can(170, 172, 78, 0.82)]),
     nuisances(parts),
@@ -428,7 +444,7 @@ function glove(): Art {
   ])
 }
 
-function carrying(parts: TrashParts): Art {
+function carrying(parts: TrashParts, tone: BinTone): Art {
   const dashes = [
     [52, 135, 'M0 0V14', 1],
     [74, 140, 'M0 0V20', 2],
@@ -443,8 +459,8 @@ function carrying(parts: TrashParts): Art {
     shadow(140, 182, 42),
     placed(140, 0.66, [
       opening(),
-      binBody({ mood: parts.mood, grime: parts.grime }),
-      hingedLid(parts.lid, lidColor(parts.grime)),
+      binBody({ tone, mood: parts.mood, grime: parts.grime }),
+      hingedLid(parts.lid, lidColor(parts.grime, tone)),
     ]),
     part(
       'motion-lines',
@@ -477,7 +493,7 @@ function roll(): Art {
   ])
 }
 
-function emptyView(parts: TrashParts): Art {
+function emptyView(parts: TrashParts, tone: BinTone): Art {
   const lines: Array<readonly [number, number]> = [
     [56, 96],
     [34, 76],
@@ -492,8 +508,8 @@ function emptyView(parts: TrashParts): Art {
     shadow(160, 182, 28),
     placed(76, 0.86, [
       opening(),
-      binBody({ mood: parts.mood, grime: parts.grime }),
-      hingedLid(parts.lid, lidColor(parts.grime)),
+      binBody({ tone, mood: parts.mood, grime: parts.grime }),
+      hingedLid(parts.lid, lidColor(parts.grime, tone)),
     ]),
     at(160, 163, roll()),
     part(
@@ -512,12 +528,12 @@ function emptyView(parts: TrashParts): Art {
   ]
 }
 
-function freshView(parts: TrashParts): Art {
+function freshView(parts: TrashParts, tone: BinTone): Art {
   return [
     shadow(100, 182, 64),
     opening(C.lilacDark),
-    binBody({ mood: parts.mood, grime: 0, shine: true, draped: true }),
-    hingedLid(parts.lid, C.mint),
+    binBody({ tone, mood: parts.mood, grime: 0, shine: true, draped: true }),
+    hingedLid(parts.lid, tone.body),
     sparkle(30, 112, 1.3, 1),
     sparkle(172, 128, 1.05, 2),
     sparkle(40, 62, 0.95, 3),
@@ -528,12 +544,13 @@ function freshView(parts: TrashParts): Art {
 
 export function trash(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = trashParts(scene)
+  const tone = binToneOf(scene)
   const views: Record<TrashView, () => Art> = {
-    filling: () => filling(parts),
-    heap: () => heapView(parts),
-    carrying: () => carrying(parts),
-    empty: () => emptyView(parts),
-    fresh: () => freshView(parts),
+    filling: () => filling(parts, tone),
+    heap: () => heapView(parts, tone),
+    carrying: () => carrying(parts, tone),
+    empty: () => emptyView(parts, tone),
+    fresh: () => freshView(parts, tone),
   }
   const art = views[parts.view]()
   return frame('trash', scene, options, art)

@@ -21,6 +21,29 @@ SceneName = Literal[
     "fridge",
     "window",
     "water",
+    "cooler",
+    "gym",
+    "pool",
+    "ev",
+    "fuel",
+    "study",
+    "language",
+    "coding",
+    "slides",
+    "book",
+    "filter",
+    "bills",
+    "yoga",
+    "run",
+    "groceries",
+    "cooking",
+    "call",
+    "journal",
+    "lawn",
+    "music",
+    "backup",
+    "carwash",
+    "owl",
 ]
 Role = Literal["todo", "running", "waiting"]
 Anchor = Literal["completion", "schedule"]
@@ -31,13 +54,16 @@ EventSource = Literal["manual", "trigger", "service", "schedule", "todo"]
 
 DEFAULT_CLEAN_FOR_MINUTES = 720
 DEFAULT_GRACE_HOURS = 24
+DEFAULT_DEADLINE = "23:59"
 DEFAULT_HISTORY_RETENTION_DAYS = 365
 MAX_DAYS = 36500
+MAX_VARIANT_LENGTH = 32
 PACK_SIZE = 7
 INDETERMINATE_STATES = frozenset({"unknown", "unavailable"})
 
 _TIME_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
 _ENTITY_RE = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
+_ACCENT_RE = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 class ValidationError(ValueError):
@@ -136,6 +162,17 @@ def _time(data: Mapping[str, Any], key: str, path: str) -> str:
     return value
 
 
+def _schedule_time(data: Mapping[str, Any], path: str) -> tuple[str, bool]:
+    anytime = _boolean(data, "anytime", path, default=False)
+    if anytime and data.get("time") is None:
+        return DEFAULT_DEADLINE, True
+    return _time(data, "time", path), anytime
+
+
+def _anytime_field(anytime: bool) -> dict[str, Any]:
+    return {"anytime": True} if anytime else {}
+
+
 def as_utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("datetime must be timezone-aware")
@@ -180,18 +217,24 @@ class OnceSchedule:
 @dataclass(frozen=True, slots=True)
 class DailySchedule:
     time: str
+    anytime: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {"type": "daily", "time": self.time}
+        return {"type": "daily", "time": self.time} | _anytime_field(self.anytime)
 
 
 @dataclass(frozen=True, slots=True)
 class WeeklySchedule:
     weekdays: tuple[int, ...]
     time: str
+    anytime: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {"type": "weekly", "weekdays": list(self.weekdays), "time": self.time}
+        return {
+            "type": "weekly",
+            "weekdays": list(self.weekdays),
+            "time": self.time,
+        } | _anytime_field(self.anytime)
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +242,7 @@ class IntervalSchedule:
     every_days: int
     time: str
     anchor: Anchor
+    anytime: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -206,10 +250,14 @@ class IntervalSchedule:
             "every_days": self.every_days,
             "time": self.time,
             "anchor": self.anchor,
-        }
+        } | _anytime_field(self.anytime)
 
 
 Schedule = OnceSchedule | DailySchedule | WeeklySchedule | IntervalSchedule
+
+
+def is_anytime(schedule: Schedule) -> bool:
+    return not isinstance(schedule, OnceSchedule) and schedule.anytime
 
 
 def schedule_from_dict(value: Any, path: str = "schedule") -> Schedule:
@@ -220,20 +268,25 @@ def schedule_from_dict(value: Any, path: str = "schedule") -> Schedule:
         data = _mapping(value, path, frozenset({"type", "due"}))
         return OnceSchedule(due=parse_instant(_required(data, "due", path), f"{path}.due"))
     if kind == "daily":
-        data = _mapping(value, path, frozenset({"type", "time"}))
-        return DailySchedule(time=_time(data, "time", path))
+        data = _mapping(value, path, frozenset({"type", "time", "anytime"}))
+        at, anytime = _schedule_time(data, path)
+        return DailySchedule(time=at, anytime=anytime)
     if kind == "weekly":
-        data = _mapping(value, path, frozenset({"type", "weekdays", "time"}))
+        data = _mapping(value, path, frozenset({"type", "weekdays", "time", "anytime"}))
+        at, anytime = _schedule_time(data, path)
         return WeeklySchedule(
             weekdays=_weekdays(_required(data, "weekdays", path), f"{path}.weekdays"),
-            time=_time(data, "time", path),
+            time=at,
+            anytime=anytime,
         )
     if kind == "interval":
-        data = _mapping(value, path, frozenset({"type", "every_days", "time", "anchor"}))
+        data = _mapping(value, path, frozenset({"type", "every_days", "time", "anchor", "anytime"}))
+        at, anytime = _schedule_time(data, path)
         return IntervalSchedule(
             every_days=_integer(data, "every_days", path, minimum=1),
-            time=_time(data, "time", path),
+            time=at,
             anchor=_enum(data, "anchor", path, Anchor),
+            anytime=anytime,
         )
     _fail(f"{path}.type", "must be one of once, daily, weekly, interval")
 
@@ -334,6 +387,33 @@ class Stage:
 
 
 @dataclass(frozen=True, slots=True)
+class Look:
+    accent: str | None = None
+    variant: str | None = None
+
+    @classmethod
+    def from_dict(cls, value: Any, path: str = "look") -> Look:
+        data = _mapping(value, path, frozenset({"accent", "variant"}))
+        accent = _optional_string(data, "accent", path)
+        if accent is not None and not _ACCENT_RE.fullmatch(accent):
+            _fail(f"{path}.accent", "must be a colour formatted as #rrggbb")
+        variant = None if data.get("variant") is None else _string(data, "variant", path)
+        if variant is not None and len(variant) > MAX_VARIANT_LENGTH:
+            _fail(f"{path}.variant", f"must be at most {MAX_VARIANT_LENGTH} characters")
+        return cls(accent=accent, variant=variant)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"accent": self.accent, "variant": self.variant}
+
+
+def _look(value: Any, path: str) -> Look | None:
+    if value is None:
+        return None
+    look = Look.from_dict(value, path)
+    return None if look == Look() else look
+
+
+@dataclass(frozen=True, slots=True)
 class Task:
     id: str
     title: str
@@ -348,6 +428,7 @@ class Task:
     enabled: bool = True
     clean_for_minutes: int = DEFAULT_CLEAN_FOR_MINUTES
     grace_hours: int = DEFAULT_GRACE_HOURS
+    look: Look | None = None
 
     @classmethod
     def from_dict(cls, value: Any, path: str = "task") -> Task:
@@ -360,6 +441,7 @@ class Task:
                     "title",
                     "icon",
                     "color",
+                    "look",
                     "notes",
                     "assignee",
                     "enabled",
@@ -377,6 +459,7 @@ class Task:
             title=_string(data, "title", path),
             icon=_optional_string(data, "icon", path),
             color=_optional_string(data, "color", path),
+            look=_look(data.get("look"), f"{path}.look"),
             notes=_optional_string(data, "notes", path),
             assignee=_optional_string(data, "assignee", path),
             enabled=_boolean(data, "enabled", path, default=True),
@@ -396,6 +479,7 @@ class Task:
             "title": self.title,
             "icon": self.icon,
             "color": self.color,
+            "look": None if self.look is None else self.look.to_dict(),
             "notes": self.notes,
             "assignee": self.assignee,
             "enabled": self.enabled,

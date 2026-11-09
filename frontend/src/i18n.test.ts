@@ -30,6 +30,7 @@ function task(overrides: Partial<TaskView>): TaskView {
     can_skip: true,
     can_undo: false,
     automated: false,
+    anytime: false,
     scene: { name: 'generic', state: 'resting', fill: 0, stink: 0, progress: 0 },
     ...overrides,
   }
@@ -138,5 +139,56 @@ describe('due text', () => {
     expect(uk.dueText(task({ status: 'overdue', overdue_seconds: 3600 }), NOW)).toBe(
       'Прострочено · 1 година',
     )
+  })
+})
+
+describe('any-time tasks', () => {
+  const deadline = '2026-11-08T21:59:00Z'
+
+  test('an upcoming task on its day says any time', () => {
+    const view = task({ anytime: true, is_today: true, status: 'upcoming', due_at: deadline })
+    expect(en.dueText(view, NOW)).toBe('Today, any time')
+    expect(uk.dueText(view, NOW)).toBe('Сьогодні, будь-коли')
+  })
+
+  test('an upcoming task on a later day keeps the usual text', () => {
+    const view = task({ anytime: true, is_today: false, due_at: '2026-11-09T14:00:00Z' })
+    expect(en.dueText(view, NOW)).toBe('Due tomorrow')
+  })
+
+  test('a due task says the time left', () => {
+    const view = task({ anytime: true, is_today: true, status: 'due', due_at: deadline })
+    expect(en.dueText(view, '2026-11-08T19:59:00Z')).toBe('2 hours left')
+    expect(uk.dueText(view, '2026-11-08T19:59:00Z')).toBe('Ще 2 години')
+    expect(uk.dueText(view, '2026-11-08T20:59:00Z')).toBe('Ще 1 година')
+    expect(en.dueText(view, '2026-11-08T21:29:00Z')).toBe('30 minutes left')
+  })
+
+  test('a due task exactly at the deadline is due now', () => {
+    const view = task({ anytime: true, is_today: true, status: 'due', due_at: deadline })
+    expect(en.dueText(view, deadline)).toBe('Due now')
+  })
+
+  test('a timed due task is unchanged', () => {
+    expect(en.dueText(task({ status: 'due', due_at: deadline }), NOW)).toBe('Due now')
+  })
+
+  test('schedule summaries', () => {
+    const daily = { type: 'daily', time: '18:00', anytime: true } as const
+    expect(en.scheduleText(daily)).toBe('Every day, any time, by 18:00')
+    expect(uk.scheduleText(daily)).toBe('Щодня, будь-коли, до 18:00')
+    expect(en.scheduleText({ type: 'weekly', weekdays: [0], time: '18:00', anytime: true })).toBe(
+      'Mon, any time, by 18:00',
+    )
+    expect(
+      en.scheduleText({
+        type: 'interval',
+        every_days: 3,
+        time: '18:00',
+        anchor: 'completion',
+        anytime: true,
+      }),
+    ).toBe('Every 3 days, any time, by 18:00')
+    expect(en.scheduleText({ type: 'daily', time: '18:00' })).toBe('Every day at 18:00')
   })
 })

@@ -11,6 +11,7 @@ from .models import (
     Schedule,
     WeeklySchedule,
     as_utc,
+    is_anytime,
 )
 
 SLOT_EPOCH = date(2000, 1, 3)
@@ -41,6 +42,9 @@ def next_due(
     previous_due: datetime | None = None,
 ) -> datetime | None:
     after = as_utc(after)
+    if is_anytime(schedule) and last_completed is not None:
+        day = local_date(as_utc(last_completed), zone)
+        after = max(after, resolve_local(day, parse_hhmm(schedule.time), zone))
     match schedule:
         case OnceSchedule(due=due):
             return as_utc(due) if as_utc(due) > after else None
@@ -61,6 +65,8 @@ def first_due(
 ) -> datetime | None:
     if isinstance(schedule, OnceSchedule):
         return as_utc(schedule.due)
+    if isinstance(schedule, IntervalSchedule) and schedule.anytime and last_completed is None:
+        return _first_matching(schedule.time, as_utc(now), zone, None)
     return next_due(schedule, now, zone, last_completed)
 
 

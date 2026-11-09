@@ -1,11 +1,14 @@
 import { css, html, LitElement, nothing } from 'lit'
 import type { PropertyDeclarations, PropertyValues, TemplateResult } from 'lit'
+import { guard } from 'lit/directives/guard.js'
 import { ifDefined } from 'lit/directives/if-defined.js'
 import { repeat } from 'lit/directives/repeat.js'
+import { styleMap } from 'lit/directives/style-map.js'
 
 import { createTask, deleteTask, updateTask } from '../api.ts'
 import type { I18n, MessageKey } from '../i18n.ts'
 import { renderScene } from '../scenes/index.ts'
+import { ACCENTS, variantsFor } from '../scenes/looks.ts'
 import { controls, sceneStyles, tokens } from '../styles.ts'
 import type {
   HassEntityState,
@@ -22,35 +25,25 @@ import {
   entityOf,
   formatEntityValue,
   formFromDraft,
+  isAnytimeForm,
   liveMatch,
+  matchesFilter,
   moveStage,
+  PICKER_GROUPS,
   removeStage,
   suggestEntities,
   taskFromForm,
   triggerSentence,
   validateForm,
+  withAnytime,
+  withScene,
 } from './model.ts'
 import type { Condition, FormErrors, ScheduleType, StageForm, TaskForm } from './model.ts'
 import { icon, iconStyles } from './tile.ts'
 
-const SCENES: SceneName[] = [
-  'generic',
-  'pills',
-  'laundry',
-  'plant',
-  'teeth',
-  'bed',
-  'dishes',
-  'trash',
-  'vacuum',
-  'pet',
-  'bathroom',
-  'fridge',
-  'window',
-  'water',
-]
 const SCHEDULES: ScheduleType[] = ['once', 'daily', 'weekly', 'interval']
 const WEEK = [0, 1, 2, 3, 4, 5, 6]
+const CUSTOM_ACCENT_START = '#5ab4ff'
 
 interface Choice<T extends string> {
   value: T
@@ -85,6 +78,7 @@ export class HousetideEditor extends LitElement {
     saving: { state: true },
     failure: { state: true },
     picker: { state: true },
+    sceneFilter: { state: true },
     confirming: { state: true },
   }
 
@@ -222,6 +216,82 @@ export class HousetideEditor extends LitElement {
         aspect-ratio: 1;
         border-radius: calc(var(--ht-radius) * 0.7);
         corner-shape: var(--ht-corner);
+      }
+
+      .scene-group {
+        margin: 6px 0 0;
+        color: var(--ht-muted);
+        font-size: 0.8125rem;
+        font-weight: 600;
+      }
+
+      .look {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
+        background: var(--ht-surface-alt);
+      }
+
+      .look-preview {
+        overflow: hidden;
+        justify-self: center;
+        width: min(240px, 100%);
+        aspect-ratio: 1;
+        border-radius: var(--ht-radius);
+        corner-shape: var(--ht-corner);
+      }
+
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .accent {
+        appearance: none;
+        box-sizing: border-box;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 3px solid transparent;
+        border-radius: 999px;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .accent[aria-pressed='true'] {
+        border-color: var(--ht-fg);
+      }
+
+      .accent:disabled {
+        cursor: default;
+      }
+
+      .accent-default {
+        width: auto;
+        padding: 0 14px;
+        background: var(--ht-surface);
+        color: var(--ht-fg);
+        font: inherit;
+        font-size: 0.8125rem;
+      }
+
+      .accent-custom {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .accent-custom .ht-input {
+        width: 56px;
+        padding: 4px;
+      }
+
+      .accent-custom .ht-input[data-on='true'] {
+        border-color: var(--ht-fg);
       }
 
       .check {
@@ -421,6 +491,7 @@ export class HousetideEditor extends LitElement {
   declare saving: boolean
   declare failure: string | null
   declare picker: number | null
+  declare sceneFilter: string
   declare confirming: boolean
 
   constructor() {
@@ -432,6 +503,7 @@ export class HousetideEditor extends LitElement {
     this.saving = false
     this.failure = null
     this.picker = null
+    this.sceneFilter = ''
     this.confirming = false
   }
 
@@ -450,6 +522,7 @@ export class HousetideEditor extends LitElement {
       this.showErrors = false
       this.failure = null
       this.confirming = false
+      this.sceneFilter = ''
     }
   }
 
@@ -594,32 +667,7 @@ export class HousetideEditor extends LitElement {
           this.patch({ title })
         },
       })}
-      <div class="ht-label">
-        ${i18n.t('field_scene')}
-        <div class="scenes">
-          ${SCENES.map(
-            (scene) =>
-              html`<button
-                type="button"
-                class="scene"
-                data-scene=${scene}
-                aria-pressed=${form.scene === scene ? 'true' : 'false'}
-                ?disabled=${this.readonly}
-                @click=${(): void => {
-                  this.patch({ scene })
-                }}
-              >
-                <span class="scene-art">
-                  ${renderScene(
-                    { name: scene, state: 'accumulating', fill: 0.6, stink: 0, progress: 0 },
-                    { animations: false },
-                  )}
-                </span>
-                ${i18n.t(`scene_${scene}`)}
-              </button>`,
-          )}
-        </div>
-      </div>
+      ${this.renderScenePicker(form, i18n)} ${this.renderLook(form, i18n)}
       <div class="pair">
         ${this.input({
           path: 'icon',
@@ -688,6 +736,163 @@ export class HousetideEditor extends LitElement {
     </section>`
   }
 
+  private renderScenePicker(form: TaskForm, i18n: I18n): TemplateResult {
+    const groups = PICKER_GROUPS.map((group) => {
+      const label = i18n.t(group.label)
+      const scenes = group.scenes.filter((scene) =>
+        matchesFilter(this.sceneFilter, i18n.t(`scene_${scene}`), scene, label),
+      )
+      return { label, scenes }
+    }).filter((group) => group.scenes.length > 0)
+    return html`<div class="ht-label">
+      ${i18n.t('field_scene')}
+      <input
+        class="ht-input"
+        type="search"
+        data-field="scene-filter"
+        placeholder=${i18n.t('picker_filter')}
+        aria-label=${i18n.t('picker_filter')}
+        .value=${this.sceneFilter}
+        @input=${(event: Event): void => {
+          this.sceneFilter = eventValue(event)
+        }}
+      />
+      ${groups.map(
+        (group) =>
+          html`<h4 class="scene-group">${group.label}</h4>
+            <div class="scenes">
+              ${repeat(
+                group.scenes,
+                (scene) => scene,
+                (scene) => this.renderSceneChoice(form, scene, i18n),
+              )}
+            </div>`,
+      )}
+      ${groups.length === 0 ? html`<span class="hint">${i18n.t('picker_empty')}</span>` : nothing}
+    </div>`
+  }
+
+  private renderSceneChoice(form: TaskForm, scene: SceneName, i18n: I18n): TemplateResult {
+    return html`<button
+      type="button"
+      class="scene"
+      data-scene=${scene}
+      aria-pressed=${form.scene === scene ? 'true' : 'false'}
+      ?disabled=${this.readonly}
+      @click=${(): void => {
+        if (this.form) this.form = withScene(this.form, scene)
+      }}
+    >
+      <span class="scene-art">
+        ${guard([scene], () =>
+          renderScene(
+            { name: scene, state: 'accumulating', fill: 0.6, stink: 0, progress: 0 },
+            { animations: false },
+          ),
+        )}
+      </span>
+      ${i18n.t(`scene_${scene}`)}
+    </button>`
+  }
+
+  private accentButton(form: TaskForm, accent: string, label: string): TemplateResult {
+    return html`<button
+      type="button"
+      class="accent"
+      data-accent=${accent}
+      style=${styleMap({ background: accent })}
+      aria-label=${label}
+      title=${label}
+      aria-pressed=${form.accent === accent ? 'true' : 'false'}
+      ?disabled=${this.readonly}
+      @click=${(): void => {
+        this.patch({ accent })
+      }}
+    ></button>`
+  }
+
+  private renderLook(form: TaskForm, i18n: I18n): TemplateResult | typeof nothing {
+    if (form.scene === 'generic') return nothing
+    const variants = variantsFor(form.scene)
+    const shown = variants.find((variant) => variant === form.variant) ?? variants[0]
+    const custom = form.accent !== '' && !ACCENTS.some(({ color }) => color === form.accent)
+    return html`<div class="look" data-part="look">
+      <h3>${i18n.t('field_look')}</h3>
+      <div class="look-preview" data-part="look-preview">
+        ${renderScene(
+          {
+            name: form.scene,
+            state: 'due',
+            fill: 0.8,
+            stink: 0,
+            progress: 0.5,
+            look: { accent: form.accent || null, variant: form.variant || null },
+          },
+          { label: i18n.t(`scene_${form.scene}`) },
+        )}
+      </div>
+      <div class="ht-label">
+        ${i18n.t('field_accent')}
+        <div class="swatches" role="group" aria-label=${i18n.t('field_accent')}>
+          <button
+            type="button"
+            class="accent accent-default"
+            data-accent=""
+            aria-pressed=${form.accent === '' ? 'true' : 'false'}
+            ?disabled=${this.readonly}
+            @click=${(): void => {
+              this.patch({ accent: '' })
+            }}
+          >
+            ${i18n.t('look_default')}
+          </button>
+          ${ACCENTS.map(({ name, color }) =>
+            this.accentButton(form, color, i18n.t(`accent_${name}`)),
+          )}
+          <label class="accent-custom">
+            <input
+              class="ht-input"
+              type="color"
+              data-field="look-accent"
+              data-on=${custom ? 'true' : 'false'}
+              aria-label=${i18n.t('look_custom')}
+              title=${i18n.t('look_custom')}
+              .value=${form.accent || CUSTOM_ACCENT_START}
+              ?disabled=${this.readonly}
+              @input=${(event: Event): void => {
+                this.patch({ accent: eventValue(event).toLowerCase() })
+              }}
+            />
+          </label>
+        </div>
+      </div>
+      ${
+        variants.length === 0
+          ? nothing
+          : html`<div class="ht-label">
+              ${i18n.t('field_variant')}
+              <div class="segments" role="group" aria-label=${i18n.t('field_variant')}>
+                ${variants.map(
+                  (variant) =>
+                    html`<button
+                      type="button"
+                      class="ht-btn segment"
+                      data-variant=${variant}
+                      aria-pressed=${shown === variant ? 'true' : 'false'}
+                      ?disabled=${this.readonly}
+                      @click=${(): void => {
+                        this.patch({ variant })
+                      }}
+                    >
+                      ${i18n.t(`variant_${variant}`)}
+                    </button>`,
+                )}
+              </div>
+            </div>`
+      }
+    </div>`
+  }
+
   private renderAssignee(form: TaskForm, errors: FormErrors, i18n: I18n): TemplateResult {
     const people = Object.values(this.hass.states).filter((entity) =>
       entity.entity_id.startsWith('person.'),
@@ -715,7 +920,7 @@ export class HousetideEditor extends LitElement {
   private renderSchedule(form: TaskForm, errors: FormErrors, i18n: I18n): TemplateResult {
     const time = this.input({
       path: 'time',
-      label: i18n.t('field_time'),
+      label: i18n.t(isAnytimeForm(form) ? 'field_deadline' : 'field_time'),
       value: form.time,
       type: 'time',
       errors,
@@ -799,6 +1004,22 @@ export class HousetideEditor extends LitElement {
         )}
       </div>
       ${fields}
+      ${
+        form.schedule === 'once'
+          ? nothing
+          : html`<label class="check">
+              <input
+                type="checkbox"
+                data-field="anytime"
+                .checked=${form.anytime}
+                ?disabled=${this.readonly}
+                @change=${(event: Event): void => {
+                  if (this.form) this.form = withAnytime(this.form, eventChecked(event))
+                }}
+              />
+              ${i18n.t('field_anytime')}
+            </label>`
+      }
     </section>`
   }
 
@@ -822,6 +1043,7 @@ export class HousetideEditor extends LitElement {
   }
 
   private renderBehaviour(form: TaskForm, errors: FormErrors, i18n: I18n): TemplateResult {
+    const anytime = isAnytimeForm(form)
     return html`<section>
       <h3>${i18n.t('section_behaviour')}</h3>
       ${this.select<OnMissed>({
@@ -851,10 +1073,10 @@ export class HousetideEditor extends LitElement {
         })}
         ${this.input({
           path: 'grace',
-          label: i18n.t('field_grace'),
+          label: i18n.t(anytime ? 'field_grace_anytime' : 'field_grace'),
           value: form.grace,
           inputmode: 'numeric',
-          hint: i18n.t('hint_grace'),
+          hint: i18n.t(anytime ? 'hint_grace_anytime' : 'hint_grace'),
           errors,
           i18n,
           onInput: (grace) => {

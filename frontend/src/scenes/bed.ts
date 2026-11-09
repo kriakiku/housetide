@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   blobPath,
   clamp01,
@@ -15,9 +16,11 @@ import {
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -104,7 +107,29 @@ interface Palette {
   pillowShade: string
 }
 
-function palette(parts: BedParts): Palette {
+interface Bedding {
+  main: string
+  dark: string
+  deep: string
+  cuff: string
+  spot: string
+}
+
+function beddingOf(scene: SceneView): Bedding {
+  const main = accentOf(scene, C.lilac)
+  if (main === C.lilac) {
+    return { main, dark: C.lilacDark, deep: '#5f4aa8', cuff: CUFF, spot: C.sky }
+  }
+  return {
+    main,
+    dark: shadeOf(main),
+    deep: shadeOf(main, 0.5),
+    cuff: tintOf(main, 0.8),
+    spot: main,
+  }
+}
+
+function palette(parts: BedParts, bedding: Bedding): Palette {
   const grime = parts.stains * 0.13
   const tone = (hex: string, dirty = true): string =>
     mix(dirty ? mix(hex, '#8f8a66', grime) : hex, NIGHT, parts.night ? 0.3 : 0)
@@ -112,11 +137,11 @@ function palette(parts: BedParts): Palette {
     wood: tone(C.wicker, false),
     woodDark: tone(C.wickerDark, false),
     woodLight: tone(C.wickerLight, false),
-    top: tone(C.lilac),
-    side: tone(mix(C.lilac, C.lilacDark, 0.7)),
-    crease: tone(mix(C.lilacDark, '#5f4aa8', 0.45)),
-    cuff: tone(CUFF),
-    cuffShade: tone(mix(CUFF, C.lilac, 0.55)),
+    top: tone(bedding.main),
+    side: tone(mix(bedding.main, bedding.dark, 0.7)),
+    crease: tone(mix(bedding.dark, bedding.deep, 0.45)),
+    cuff: tone(bedding.cuff),
+    cuffShade: tone(mix(bedding.cuff, bedding.main, 0.55)),
     pillow: tone(C.cream),
     pillowShade: tone(C.creamDark),
   }
@@ -354,14 +379,14 @@ function mites(count: number): Art {
   return MITE_SPOTS.slice(0, count).map(([x, y], i) => mite(x, y, i))
 }
 
-function folded(x: number, y: number, size: number): Art {
+function folded(x: number, y: number, size: number, color: string): Art {
   return part(
     'fresh-set',
     at(
       x,
       y,
       [
-        svg`<rect x="-24" y="-13" width="48" height="13" rx="6" fill=${C.lilac} />`,
+        svg`<rect x="-24" y="-13" width="48" height="13" rx="6" fill=${color} />`,
         svg`<rect x="-22" y="-25" width="44" height="13" rx="6" fill=${C.cream} />`,
         svg`<rect x="-20" y="-37" width="40" height="13" rx="6" fill=${C.pink} />`,
         svg`<path d="M-18-6.5h36M-16-18.5h32M-14-30.5h28" stroke="#000" stroke-opacity=".12" stroke-width="2.6" stroke-linecap="round" />`,
@@ -452,8 +477,8 @@ function grimeLayer(parts: BedParts): Art {
   ]
 }
 
-function madeBed(parts: BedParts): Art {
-  const p = palette(parts)
+function madeBed(parts: BedParts, bedding: Bedding): Art {
+  const p = palette(parts, bedding)
   return [
     shadow(100, 184, 80),
     headboard(p, parts.mood),
@@ -466,19 +491,19 @@ function madeBed(parts: BedParts): Art {
   ]
 }
 
-function made(parts: BedParts): Art {
+function made(parts: BedParts, bedding: Bedding): Art {
   if (parts.stool) {
     return [
-      scale(madeBed(parts), 78, 0.82),
+      scale(madeBed(parts, bedding), 78, 0.82),
       stool(),
-      at(162, 138, motion('bob', folded(0, 0, 0.92))),
+      at(162, 138, motion('bob', folded(0, 0, 0.92, bedding.main))),
       sparkle(176, 82, 0.7, 2),
       sparkle(142, 92, 0.5, 4),
       grimeLayer(parts),
     ]
   }
   return [
-    madeBed(parts),
+    madeBed(parts, bedding),
     when(parts.night, dream),
     when(parts.pretty, () => [
       sparkle(26, 46, 1.25, 1),
@@ -520,15 +545,15 @@ function barePillow(x: number, rotate: number): Art {
   )
 }
 
-function bareFrame(parts: BedParts, mood: Mood): Art {
-  const p = palette({ ...parts, night: false, stains: 0 })
+function bareFrame(parts: BedParts, mood: Mood, bedding: Bedding): Art {
+  const p = palette({ ...parts, night: false, stains: 0 }, bedding)
   return [shadow(100, 184, 80), headboard(p, mood), frameBase(p), mattress()]
 }
 
 const SHEET_TOP = 'M14 60C22 28 52 36 76 22C100 8 126 30 150 18C168 9 182 24 187 42'
 const SHEET_HEM = 'C176 68 154 50 130 64C108 76 88 58 66 68C44 78 26 66 14 60Z'
 
-function sheet(): Art {
+function sheet(spot: string): Art {
   const dots = [
     [36, 48],
     [58, 40],
@@ -544,7 +569,7 @@ function sheet(): Art {
     [144, 48],
     [166, 50],
   ] as const
-  const under = mix(C.creamDark, C.sky, 0.35)
+  const under = mix(C.creamDark, spot, 0.35)
   return part(
     'sheet',
     motion(
@@ -557,7 +582,7 @@ function sheet(): Art {
           at(-100, -46, [
             svg`<path d="M14 60C26 78 46 84 66 76C88 66 108 84 130 72C154 58 176 76 187 42C176 54 154 42 130 54C108 66 88 48 66 58C44 68 26 66 14 60Z" fill=${under} stroke=${under} stroke-width="3" stroke-linejoin="round" />`,
             svg`<path d=${SHEET_TOP + SHEET_HEM} fill=${C.cream} stroke=${C.cream} stroke-width="4" stroke-linejoin="round" />`,
-            dots.map(([x, y]) => svg`<circle cx=${x} cy=${y} r="2.8" fill=${C.sky} />`),
+            dots.map(([x, y]) => svg`<circle cx=${x} cy=${y} r="2.8" fill=${spot} />`),
             svg`<path d="M66 66Q70 50 62 38M130 62Q124 46 134 32" fill="none" stroke=${C.creamDark} stroke-width="3.4" stroke-linecap="round" />`,
           ]),
         ),
@@ -602,10 +627,10 @@ function mattressStains(count: number): Art {
     )
 }
 
-function changing(parts: BedParts): Art {
+function changing(parts: BedParts, bedding: Bedding): Art {
   return [
-    scale([bareFrame(parts, parts.mood), mattressStains(parts.stains)], 100, 0.84),
-    sheet(),
+    scale([bareFrame(parts, parts.mood, bedding), mattressStains(parts.stains)], 100, 0.84),
+    sheet(bedding.spot),
     swoosh(),
     stenchLines(
       (
@@ -619,7 +644,7 @@ function changing(parts: BedParts): Art {
   ]
 }
 
-function wish(): Art {
+function wish(color: string): Art {
   return part('wish', [
     svg`<circle cx="120" cy="50" r="3.6" fill=${C.cream} /><circle cx="130" cy="42" r="5.6" fill=${C.cream} />`,
     at(
@@ -627,27 +652,27 @@ function wish(): Art {
       30,
       motion('pulse', [
         svg`<circle r="22" fill=${C.cream} />`,
-        at(0, 0, svg`<path d=${PILLOW} fill=${C.lilac} />`, -6, 0.5),
+        at(0, 0, svg`<path d=${PILLOW} fill=${color} />`, -6, 0.5),
       ]),
     ),
   ])
 }
 
-function bare(parts: BedParts): Art {
+function bare(parts: BedParts, bedding: Bedding): Art {
   const lines = [
     [18, 128],
     [182, 122],
     [62, 46],
   ] as const
   return [
-    bareFrame(parts, parts.mood),
+    bareFrame(parts, parts.mood, bedding),
     barePillow(67, -6),
     barePillow(133, 6),
     mattressStains(parts.stains),
     crumbs(parts.crumbs),
     mites(Math.min(parts.mites, 2)),
-    at(100, 162, motion('bob', folded(0, 0, 1))),
-    wish(),
+    at(100, 162, motion('bob', folded(0, 0, 1, bedding.main))),
+    wish(bedding.main),
     stenchLines(lines.slice(0, parts.stench)),
     BARE_FLY_SPOTS.slice(0, parts.flies).map(([x, y], i) => fly(x, y, i)),
   ]
@@ -655,10 +680,11 @@ function bare(parts: BedParts): Art {
 
 export function bed(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = bedParts(scene)
+  const bedding = beddingOf(scene)
   const views: Record<BedView, () => Art> = {
-    made: () => made(parts),
-    changing: () => changing(parts),
-    bare: () => bare(parts),
+    made: () => made(parts, bedding),
+    changing: () => changing(parts, bedding),
+    bare: () => bare(parts, bedding),
   }
   return frame('bed', scene, options, views[parts.view]())
 }

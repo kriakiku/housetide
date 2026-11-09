@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   blobPath,
   clamp01,
@@ -16,6 +17,7 @@ import {
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
@@ -329,7 +331,12 @@ function placed(x: number, scale: number, art: Art, name?: string): Art {
   return at(x, 182, moved, 0, scale)
 }
 
-function toothbrush(color: string, shade: string, paste: boolean): Art {
+function brushOf(scene: SceneView, color: string, shade: string): readonly [string, string] {
+  const accent = accentOf(scene, color)
+  return accent === color ? [color, shade] : [accent, shadeOf(accent)]
+}
+
+function toothbrush([color, shade]: readonly [string, string], paste: boolean): Art {
   const tufts = [0, 1, 2, 3, 4]
   return part('toothbrush', [
     svg`<path d="M-5.5-2Q-6.5-44-4-74H4Q6.5-44 5.5-2A5.5 5.5 0 0 1-5.5-2Z" fill=${color} />`,
@@ -371,19 +378,20 @@ function zee(x: number, y: number, size: number, delay: number): Art {
   )
 }
 
-function sleepingView(parts: TeethParts): Art {
+function restingBrush(scene: SceneView): Art {
+  return at(4, -32, toothbrush(brushOf(scene, C.coral, C.coralDark), false), 12, 0.78)
+}
+
+function brushCup(x: number, scene: SceneView): Art {
+  return part('cup', at(x, 182, tumbler(C.sky, C.skyDark, restingBrush(scene))))
+}
+
+function sleepingView(parts: TeethParts, scene: SceneView): Art {
   return [
     shadow(72, 184, 50),
     shadow(158, 184, 28),
     placed(72, 0.86, tooth(parts, { after: nightcap() }), 'sway'),
-    part(
-      'cup',
-      at(
-        158,
-        182,
-        tumbler(C.sky, C.skyDark, at(4, -32, toothbrush(C.coral, C.coralDark, false), 12, 0.78)),
-      ),
-    ),
+    brushCup(158, scene),
     part('zzz', [zee(140, 58, 1, 3), zee(154, 44, 1.3, 2), zee(174, 26, 1.6, 1)]),
     stenchLines(
       (
@@ -405,16 +413,18 @@ function flySpots(parts: TeethParts, spots: ReadonlyArray<readonly [number, numb
   return spots.slice(0, parts.flies).map(([x, y], i) => fly(x, y, i))
 }
 
-function dirtyView(parts: TeethParts): Art {
+function dirtyView(parts: TeethParts, scene: SceneView): Art {
   return [
-    shadow(100, 184, 54),
-    placed(100, 1, tooth(parts)),
+    shadow(76, 184, 54),
+    shadow(162, 184, 28),
+    placed(76, 0.95, tooth(parts)),
+    brushCup(162, scene),
     stenchLines(
       (
         [
-          [20, 136],
-          [180, 124],
-          [174, 76],
+          [16, 164],
+          [140, 66],
+          [16, 58],
         ] as const
       ).slice(0, parts.stench),
     ),
@@ -425,13 +435,16 @@ function dirtyView(parts: TeethParts): Art {
   ]
 }
 
-function pleadingView(parts: TeethParts): Art {
+function pleadingView(parts: TeethParts, scene: SceneView): Art {
   return [
     shadow(76, 184, 52),
     shadow(178, 184, 14),
     placed(76, 0.95, tooth(parts)),
     at(53, 130, motion('drip', drop(0, 0, C.water, 0.8))),
-    part('waiting-brush', at(178, 180, motion('sway', toothbrush(C.sky, C.skyDark, true)), -3)),
+    part(
+      'waiting-brush',
+      at(178, 180, motion('sway', toothbrush(brushOf(scene, C.sky, C.skyDark), true)), -3),
+    ),
     stenchLines(
       (
         [
@@ -448,7 +461,7 @@ function pleadingView(parts: TeethParts): Art {
   ]
 }
 
-function scrubbingView(parts: TeethParts): Art {
+function scrubbingView(parts: TeethParts, scene: SceneView): Art {
   return [
     shadow(84, 184, 54),
     placed(
@@ -469,7 +482,11 @@ function scrubbingView(parts: TeethParts): Art {
       ),
       'rumble',
     ),
-    at(186, 44, motion('slosh', at(0, 0, toothbrush(C.coral, C.coralDark, false), -99, 0.98))),
+    at(
+      186,
+      44,
+      motion('slosh', at(0, 0, toothbrush(brushOf(scene, C.coral, C.coralDark), false), -99, 0.98)),
+    ),
     bubble(20, 74, 9, 1),
     bubble(166, 92, 8, 2),
     bubble(146, 112, 6, 3),
@@ -488,13 +505,14 @@ function scrubbingView(parts: TeethParts): Art {
   ]
 }
 
-function rinseCup(): Art {
+function rinseCup(scene: SceneView): Art {
   return part(
     'rinse-cup',
     at(
       162,
       182,
       motion('throb', [
+        restingBrush(scene),
         svg`<path d="M-25-62H25L20-6Q19.5 0 13 0H-13Q-19.5 0-20-6Z" fill="#dff3ff" opacity=".42" />`,
         svg`<path d="M-22.6-40Q-14-46-6-40T9-40T22.6-40L20-6Q19.5 0 13 0H-13Q-19.5 0-20-6Z" fill=${C.water} />`,
         svg`<path d="M-14-30L-12-11" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".55" />`,
@@ -504,7 +522,7 @@ function rinseCup(): Art {
   )
 }
 
-function rinsingView(parts: TeethParts): Art {
+function rinsingView(parts: TeethParts, scene: SceneView): Art {
   return [
     shadow(76, 184, 54),
     shadow(162, 184, 28),
@@ -515,7 +533,7 @@ function rinsingView(parts: TeethParts): Art {
         after: foamCap(),
       }),
     ),
-    rinseCup(),
+    rinseCup(scene),
     when(parts.germs === 0, () => at(28, 110, motion('drip', drop(0, 0, FOAM_SHADE, 0.8), 1))),
     at(127, 106, motion('drip', drop(0, 0, FOAM_SHADE, 0.7), 3)),
     bubble(152, 96, 6.5, 1),
@@ -524,18 +542,19 @@ function rinsingView(parts: TeethParts): Art {
       (
         [
           [16, 164],
-          [142, 66],
-          [176, 62],
+          [140, 66],
+          [16, 58],
         ] as const
       ).slice(0, parts.stench),
     ),
   ]
 }
 
-function gleamingView(parts: TeethParts): Art {
+function gleamingView(parts: TeethParts, scene: SceneView): Art {
+  const raised = at(76, -20, toothbrush(brushOf(scene, C.coral, C.coralDark), false), 8, 0.62)
   return [
     shadow(100, 184, 54),
-    placed(100, 0.96, tooth(parts, { before: arms('#ffffff') }), 'bob'),
+    placed(100, 0.96, tooth(parts, { before: [raised, arms('#ffffff')] }), 'bob'),
     sparkle(140, 50, 1.9, 1),
     sparkle(34, 66, 1.5, 2),
     sparkle(172, 118, 1.15, 3),
@@ -547,12 +566,12 @@ function gleamingView(parts: TeethParts): Art {
 export function teeth(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = teethParts(scene)
   const views: Record<TeethView, () => Art> = {
-    sleeping: () => sleepingView(parts),
-    dirty: () => dirtyView(parts),
-    pleading: () => pleadingView(parts),
-    scrubbing: () => scrubbingView(parts),
-    rinsing: () => rinsingView(parts),
-    gleaming: () => gleamingView(parts),
+    sleeping: () => sleepingView(parts, scene),
+    dirty: () => dirtyView(parts, scene),
+    pleading: () => pleadingView(parts, scene),
+    scrubbing: () => scrubbingView(parts, scene),
+    rinsing: () => rinsingView(parts, scene),
+    gleaming: () => gleamingView(parts, scene),
   }
   return frame('teeth', scene, options, views[parts.view]())
 }

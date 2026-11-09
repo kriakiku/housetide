@@ -447,7 +447,9 @@ def test_undo_restores_previous_runtime_once(action: str) -> None:
     assert transition.runtime.undo == start
     restored = undo(task, transition.runtime, at("2026-06-10T08:05:00+03:00"), user_id="u")
     assert kinds(restored) == ["undone"]
-    assert restored.runtime == start
+    same_occurrence = action == "advance"
+    assert (restored.runtime.occurrence_id == start.occurrence_id) is same_occurrence
+    assert replace(restored.runtime, occurrence_id=start.occurrence_id) == start
     assert restored.runtime.undo is None
     assert restored.events[0].user_id == "u"
     assert restored.events[0].occurrence_id == start.occurrence_id
@@ -471,7 +473,7 @@ def test_undo_of_one_off_completion_reopens_it() -> None:
     task = make_task(schedule=ONCE)
     start = fresh(task)
     finished = advance(task, start, D, KYIV).runtime
-    assert undo(task, finished, D).runtime == start
+    assert replace(undo(task, finished, D).runtime, occurrence_id=start.occurrence_id) == start
 
 
 def test_disabled_task_rejects_transitions() -> None:

@@ -2,13 +2,15 @@ import { describe, expect, test } from 'bun:test'
 
 import { render } from 'lit'
 
+import { PICKER_GROUPS } from '../panel/model.ts'
 import { sceneStyles } from '../styles.ts'
 import type { PillSlot, SceneName, SceneState, SceneView } from '../types.ts'
-import { superellipsePath } from './common.ts'
+import { COLORS, superellipsePath, tintOf } from './common.ts'
 import { genericParts } from './generic.ts'
 import { renderScene, sceneFor, generic, laundry, pills, plant } from './index.ts'
 import type { SceneOptions } from './index.ts'
 import { laundryParts, MAX_PILE } from './laundry.ts'
+import { ACCENTS, variantsFor } from './looks.ts'
 import { pillsParts } from './pills.ts'
 import { MAX_DROOP, plantParts } from './plant.ts'
 
@@ -27,6 +29,29 @@ const NAMES: SceneName[] = [
   'fridge',
   'window',
   'water',
+  'cooler',
+  'gym',
+  'pool',
+  'ev',
+  'fuel',
+  'study',
+  'language',
+  'coding',
+  'slides',
+  'book',
+  'filter',
+  'bills',
+  'yoga',
+  'run',
+  'groceries',
+  'cooking',
+  'call',
+  'journal',
+  'lawn',
+  'music',
+  'backup',
+  'carwash',
+  'owl',
 ]
 const STATES: SceneState[] = ['resting', 'accumulating', 'due', 'running', 'waiting', 'clean']
 
@@ -88,6 +113,81 @@ describe('every scene in every state', () => {
     expect(draw(view('laundry', 'due', 1, 0.7)).outerHTML).toBe(
       draw(view('laundry', 'due', 1, 0.7)).outerHTML,
     )
+  })
+})
+
+describe('per-task look', () => {
+  const LOOK = { accent: '#123456', variant: 'x' }
+  const LAID = [
+    [0, 0],
+    [0.7, 0.2],
+    [1, 1],
+  ] as const
+
+  for (const name of NAMES) {
+    for (const state of STATES) {
+      test(`${name}/${state} renders with a look`, () => {
+        for (const [fill, stink] of LAID) {
+          const html = draw({ ...view(name, state, fill, stink), look: LOOK }).outerHTML
+          expect(html).not.toContain('undefined')
+          expect(html).not.toContain('NaN')
+        }
+      })
+    }
+  }
+
+  for (const name of NAMES.filter((item) => item !== 'generic')) {
+    test(`accent changes ${name}`, () => {
+      const plain = draw(view(name, 'due', 0.7, 0.2)).outerHTML
+      expect(draw({ ...view(name, 'due', 0.7, 0.2), look: LOOK }).outerHTML).not.toBe(plain)
+    })
+  }
+
+  for (const name of ['teeth', 'laundry'] as const) {
+    for (const state of STATES) {
+      test(`accent changes ${name}/${state}`, () => {
+        const plain = draw(view(name, state, 0.7, 0.2)).outerHTML
+        expect(draw({ ...view(name, state, 0.7, 0.2), look: LOOK }).outerHTML).not.toBe(plain)
+      })
+    }
+  }
+
+  test('the fridge face stays readable on a dark accent', () => {
+    const html = draw({
+      ...view('fridge', 'accumulating', 0.2),
+      look: { accent: '#20243a' },
+    }).outerHTML
+    expect(html).not.toContain(`stroke="${COLORS.fly}"`)
+    expect(html).toContain(`stroke="${tintOf('#20243a', 0.82)}"`)
+  })
+
+  test('a variant it does not have and a bad accent change nothing', () => {
+    const plain = draw(view('gym', 'due', 1)).outerHTML
+    const odd = { accent: 'red', variant: 'x' }
+    expect(draw({ ...view('gym', 'due', 1), look: odd }).outerHTML).toBe(plain)
+  })
+
+  test('variants draw differently', () => {
+    const drawn = (name: SceneName, variant: string): string =>
+      draw({ ...view(name, 'due', 1), look: { variant } }).outerHTML
+    expect(drawn('pet', 'dog')).not.toBe(drawn('pet', 'cat'))
+    expect(drawn('laundry', 'white')).not.toBe(drawn('laundry', 'colored'))
+    expect(drawn('laundry', 'black')).not.toBe(drawn('laundry', 'white'))
+  })
+
+  test('the palette is valid and every scene is grouped once', () => {
+    expect(ACCENTS.length).toBeGreaterThanOrEqual(8)
+    for (const { color } of ACCENTS) expect(color).toMatch(/^#[0-9a-f]{6}$/)
+    expect(new Set(ACCENTS.map(({ color }) => color)).size).toBe(ACCENTS.length)
+    const grouped = PICKER_GROUPS.flatMap((group) => group.scenes)
+    expect(grouped.toSorted()).toEqual(NAMES.toSorted())
+  })
+
+  test('only pet and laundry have variants', () => {
+    expect(NAMES.filter((name) => variantsFor(name).length > 0).toSorted()).toEqual([
+      'laundry',
+      'pet',
+    ])
   })
 })
 
@@ -401,6 +501,14 @@ describe('generic', () => {
     const root = draw(view('generic', 'clean'))
     expect(count(root, 'check')).toBe(1)
     expect(count(root, 'boat')).toBe(0)
+  })
+})
+
+describe('owl', () => {
+  test('keeps the knife away until it has been ignored for a while', () => {
+    expect(count(draw(view('owl', 'clean')), 'knife')).toBe(0)
+    expect(count(draw(view('owl', 'due', 1, 0)), 'knife')).toBe(0)
+    expect(count(draw(view('owl', 'due', 1, 0.9)), 'knife')).toBe(1)
   })
 })
 

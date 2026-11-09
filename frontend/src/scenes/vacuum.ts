@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   clamp01,
   COLORS as C,
@@ -15,9 +16,11 @@ import {
   part,
   reached,
   round,
+  shadeOf,
   shadow,
   sparkle,
   stenchLines,
+  tintOf,
   when,
 } from './common.ts'
 import type { Art, Mood, SceneOptions } from './common.ts'
@@ -212,7 +215,30 @@ function wand(from: readonly [number, number], to: readonly [number, number]): A
   return svg`<path d=${`M${from[0]} ${from[1]}L${to[0]} ${to[1]}`} stroke=${C.metalMid} stroke-width="8" stroke-linecap="round" />`
 }
 
+interface BodyTone {
+  main: string
+  dark: string
+  light: string
+  blush: string
+  ink: string
+}
+
+function bodyTone(scene: SceneView): BodyTone {
+  const main = accentOf(scene, C.coral)
+  if (main === C.coral) {
+    return { main, dark: C.coralDark, light: '#ffa79b', blush: C.pink, ink: '#5b1e18' }
+  }
+  return {
+    main,
+    dark: shadeOf(main),
+    light: tintOf(main),
+    blush: tintOf(main, 0.55),
+    ink: shadeOf(main, 0.78),
+  }
+}
+
 interface BodyOptions {
+  tone: BodyTone
   mood: Mood
   lookLeft?: boolean
   cap?: boolean
@@ -222,9 +248,10 @@ interface BodyOptions {
 
 function body(options: BodyOptions): Art {
   const dust = (options.dust ?? 0) / 3
-  const shell = mix(C.coral, '#a58a78', dust * 0.8)
-  const dark = mix(C.coralDark, '#7d6a5c', dust * 0.8)
-  const light = mix('#ffa79b', '#c0a999', dust * 0.8)
+  const { tone } = options
+  const shell = mix(tone.main, '#a58a78', dust * 0.8)
+  const dark = mix(tone.dark, '#7d6a5c', dust * 0.8)
+  const light = mix(tone.light, '#c0a999', dust * 0.8)
   const faceX = options.lookLeft === true ? -9 : 0
   return part('vacuum', [
     svg`<circle cx="-36" cy="-9" r="11" fill=${C.glass} /><circle cx="36" cy="-9" r="11" fill=${C.glass} />`,
@@ -237,9 +264,9 @@ function body(options: BodyOptions): Art {
     when(
       options.blush === true,
       () =>
-        svg`<ellipse cx="-30" cy="-44" rx="7" ry="4.5" fill=${C.pink} opacity=".75" /><ellipse cx="30" cy="-44" rx="7" ry="4.5" fill=${C.pink} opacity=".75" />`,
+        svg`<ellipse cx="-30" cy="-44" rx="7" ry="4.5" fill=${tone.blush} opacity=".75" /><ellipse cx="30" cy="-44" rx="7" ry="4.5" fill=${tone.blush} opacity=".75" />`,
     ),
-    face(faceX, -53, options.mood, '#5b1e18', 1.2),
+    face(faceX, -53, options.mood, tone.ink, 1.2),
   ])
 }
 
@@ -443,13 +470,13 @@ function cordCoil(x: number, y: number): Art {
   )
 }
 
-function sleep(parts: VacuumParts): Art {
+function sleep(parts: VacuumParts, tone: BodyTone): Art {
   const ox = 118
   return [
     rug(parts),
     shadow(ox, 169, 60),
     cordCoil(40, 174),
-    at(ox, 168, body({ mood: parts.mood, dust: parts.grime })),
+    at(ox, 168, body({ tone, mood: parts.mood, dust: parts.grime })),
     part('hose', [tube('M66 108C54 38 182 38 170 108'), port(66, 108)]),
     nozzle(174, 122, 90),
     zzz(),
@@ -458,7 +485,7 @@ function sleep(parts: VacuumParts): Art {
   ]
 }
 
-function hunt(parts: VacuumParts): Art {
+function hunt(parts: VacuumParts, tone: BodyTone): Art {
   const ox = 124
   const hose = parts.raised
     ? part('hose', [
@@ -474,7 +501,7 @@ function hunt(parts: VacuumParts): Art {
   return [
     rug(parts),
     shadow(ox, 169, 60),
-    at(ox, 168, body({ mood: parts.mood, lookLeft: parts.bunnies >= 3, dust: parts.grime })),
+    at(ox, 168, body({ tone, mood: parts.mood, lookLeft: parts.bunnies >= 3, dust: parts.grime })),
     hose,
     port(74, 104),
     crumbs(parts.crumbs),
@@ -522,7 +549,7 @@ function tumbling(grime: number, count: number): Art {
     )
 }
 
-function suck(parts: VacuumParts): Art {
+function suck(parts: VacuumParts, tone: BodyTone): Art {
   const ox = 130
   const shake = [
     [68, 66, 'M0 0q-6 10 0 20', 1],
@@ -533,7 +560,7 @@ function suck(parts: VacuumParts): Art {
     rug(parts),
     shadow(ox, 169, 60),
     motion('rumble', [
-      at(ox, 168, body({ mood: parts.mood, blush: true })),
+      at(ox, 168, body({ tone, mood: parts.mood, blush: true })),
       part('hose', [
         tube('M80 104C58 92 52 116 60 146'),
         wand([60, 146], [68, 170]),
@@ -637,7 +664,7 @@ function emptyBubble(): Art {
   ])
 }
 
-function full(parts: VacuumParts): Art {
+function full(parts: VacuumParts, tone: BodyTone): Art {
   const ox = 120
   const puffs: Array<readonly [number, number, number, number]> = [
     [176, 62, 0.8, 1],
@@ -647,7 +674,7 @@ function full(parts: VacuumParts): Art {
     rug(parts),
     shadow(ox, 169, 60),
     at(ox, 168, [
-      body({ mood: parts.mood, cap: false }),
+      body({ tone, mood: parts.mood, cap: false }),
       part('stowaway', bunny(30, -127, 0.66, parts.burst, 3)),
       bag(parts.burst),
       at(-20, -123, at(0, 74, cap()), -13, 0.68),
@@ -675,11 +702,11 @@ function full(parts: VacuumParts): Art {
   ]
 }
 
-function shine(parts: VacuumParts): Art {
+function shine(parts: VacuumParts, tone: BodyTone): Art {
   return [
     rug(parts),
     shadow(124, 165, 57),
-    motion('bob', at(124, 164, body({ mood: parts.mood, blush: true }), 0, 0.95)),
+    motion('bob', at(124, 164, body({ tone, mood: parts.mood, blush: true }), 0, 0.95)),
     part('hose', [tube('M77 103C56 90 34 96 36 122'), wand([36, 122], [40, 146]), nozzle(44, 152)]),
     port(77, 103),
     sparkle(26, 72, 1.3, 1),
@@ -692,12 +719,13 @@ function shine(parts: VacuumParts): Art {
 
 export function vacuum(scene: SceneView, options?: SceneOptions): TemplateResult {
   const parts = vacuumParts(scene)
+  const tone = bodyTone(scene)
   const views: Record<VacuumView, () => Art> = {
-    sleep: () => sleep(parts),
-    hunt: () => hunt(parts),
-    suck: () => suck(parts),
-    full: () => full(parts),
-    shine: () => shine(parts),
+    sleep: () => sleep(parts, tone),
+    hunt: () => hunt(parts, tone),
+    suck: () => suck(parts, tone),
+    full: () => full(parts, tone),
+    shine: () => shine(parts, tone),
   }
   return frame('vacuum', scene, options, views[parts.view]())
 }

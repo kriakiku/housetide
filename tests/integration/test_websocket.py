@@ -261,6 +261,29 @@ async def test_templates(client: Any) -> None:
         "fridge",
         "window",
         "water",
+        "cooler",
+        "gym",
+        "pool",
+        "ev",
+        "fuel",
+        "study",
+        "language",
+        "coding",
+        "slides",
+        "book",
+        "filter",
+        "bills",
+        "yoga",
+        "run",
+        "groceries",
+        "cooking",
+        "call",
+        "journal",
+        "lawn",
+        "music",
+        "backup",
+        "carwash",
+        "owl",
         "one_off",
     }
     assert "id" not in result["laundry"]
@@ -366,3 +389,18 @@ async def test_subscribe_fails_while_unloaded(
     response = await call(client, "subscribe")
     assert not response["success"]
     assert response["error"]["code"] == "not_loaded"
+
+
+async def test_task_look_reaches_the_view(client: Any) -> None:
+    look = {"accent": "#123456", "variant": "dog"}
+    created = await call(client, "task/create", task=daily(scene="pet", look=look))
+    assert created["result"]["task"]["look"] == look
+    assert created["result"]["view"]["scene"]["look"] == look
+    cleared = await call(client, "task/update", task={**created["result"]["task"], "look": None})
+    assert cleared["result"]["task"]["look"] is None
+    assert "look" not in cleared["result"]["view"]["scene"]
+
+
+async def test_invalid_look_is_rejected(client: Any) -> None:
+    response = await call(client, "task/create", task=daily(look={"accent": "red"}))
+    assert not response["success"]

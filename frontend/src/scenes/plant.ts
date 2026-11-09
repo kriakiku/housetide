@@ -3,6 +3,7 @@ import type { TemplateResult } from 'lit'
 
 import type { SceneView } from '../types.ts'
 import {
+  accentOf,
   at,
   COLORS as C,
   drop,
@@ -169,7 +170,7 @@ export function plant(scene: SceneView, options?: SceneOptions): TemplateResult 
   const leaf = mix(C.leaf, '#9b7a3e', decay)
   const vein = mix(C.leafDark, '#7a5d2c', decay)
   const stem = mix(C.leafDark, '#7f6a35', decay)
-  const petal = mix(C.pink, '#a98a6b', decay)
+  const petal = mix(accentOf(scene, C.pink), '#a98a6b', decay)
   const centre = mix(C.sun, '#8d6b37', decay)
   const spread = 52 + parts.droop * 14
   const tip = along(arc, 1)

@@ -15,6 +15,7 @@ from .models import (
     Stage,
     Task,
     as_utc,
+    is_anytime,
 )
 from .schedule import dose_slot, first_due, next_due, on_schedule, slot_rhythm
 
@@ -148,6 +149,8 @@ def undo(
     event = _event(
         task, restored, now, "undone", current_stage(task, restored), source, user_id, new_id=new_id
     )
+    if restored.occurrence_id != runtime.occurrence_id:
+        restored = replace(restored, occurrence_id=new_id())
     return Transition(restored, (event,))
 
 
@@ -164,9 +167,11 @@ def rollover(
     events: list[HistoryEvent] = []
     current = runtime
     stage = task.stages[0]
+    anytime = is_anytime(task.schedule)
     while current.due_at is not None and current.next_due_at is not None:
-        moment = current.next_due_at
-        if now < moment:
+        following = current.next_due_at
+        moment = current.due_at if anytime else following
+        if now <= moment if anytime else now < moment:
             break
         events.append(
             _event(task, current, moment, "missed", stage, "schedule", None, new_id=new_id)
@@ -174,9 +179,9 @@ def rollover(
         current = replace(
             current,
             occurrence_id=new_id(),
-            due_at=moment,
+            due_at=following,
             stage_entered_at=moment,
-            next_due_at=_following(task, moment, zone, current.last_completed_at),
+            next_due_at=_following(task, following, zone, current.last_completed_at),
             pack=_recorded(task, current, zone, taken=False),
             undo=None,
         )
@@ -282,7 +287,8 @@ def _complete(
 ) -> Transition:
     on_time = None
     if runtime.due_at is not None:
-        on_time = now <= runtime.due_at + timedelta(hours=task.grace_hours)
+        grace = 0 if is_anytime(task.schedule) else task.grace_hours
+        on_time = now <= runtime.due_at + timedelta(hours=grace)
     event = _event(
         task,
         runtime,

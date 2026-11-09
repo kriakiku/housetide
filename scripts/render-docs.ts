@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { PICKER_GROUPS } from '../frontend/src/panel/model.ts'
 import {
   COLORS,
   drop,
@@ -40,6 +41,7 @@ import {
   type LaundryParts,
   type LaundryView,
 } from '../frontend/src/scenes/laundry.ts'
+import { ACCENTS } from '../frontend/src/scenes/looks.ts'
 import {
   MISSED_BOTTOM,
   MISSED_SHINE,
@@ -49,7 +51,7 @@ import {
 } from '../frontend/src/scenes/pills.ts'
 import { plantParts, type PlantParts } from '../frontend/src/scenes/plant.ts'
 import { sceneStyles } from '../frontend/src/styles.ts'
-import type { SceneState } from '../frontend/src/types.ts'
+import type { SceneLook, SceneName, SceneState } from '../frontend/src/types.ts'
 
 const OUT = join(import.meta.dir, '..', 'docs')
 const CELL = 200
@@ -63,7 +65,17 @@ interface Sample {
   fill?: number
   stink?: number
   slots?: readonly string[]
+  look?: SceneLook
 }
+
+interface Grid {
+  gap: number
+  caption: number
+  size: number
+}
+
+const ALBUM: Grid = { gap: GAP, caption: LABEL, size: 15 }
+const WALL: Grid = { gap: 14, caption: 42, size: 21 }
 
 function serialize(value: unknown): string {
   if (value === null || value === undefined || value === false || typeof value === 'symbol')
@@ -85,22 +97,44 @@ function serialize(value: unknown): string {
 const box = (x: number, y: number, w: number, h: number, r: number, rest = '') =>
   `<path d="${superellipsePath(x, y, w, h, r)}" ${rest}/>`
 
-function cell(sample: Sample, index: number, prefix: string): string {
-  const x = GAP + index * (CELL + GAP)
+function placedScene(sample: Sample, x: number, y: number, size: number, prefix: string): string {
   const scene = { progress: 0.5, fill: 0, stink: 0, ...sample } as never
-  const markup = serialize(renderScene(scene, { animations: false }))
+  return serialize(renderScene(scene, { animations: false }))
     .replaceAll(/<!--.*?-->/g, '')
     .replaceAll(/\bid="([^"]+)"/g, `id="${prefix}$1"`)
     .replaceAll(/url\(#([^)]+)\)/g, `url(#${prefix}$1)`)
-    .replace('<svg', `<svg x="${x}" y="${GAP}" width="${CELL}" height="${CELL}"`)
-  const label = `<text x="${x + CELL / 2}" y="${GAP + CELL + 22}" text-anchor="middle" fill="#ABA8B8" font-size="15" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">${sample.label}</text>`
-  return markup + label
+    .replace('<svg', `<svg x="${x}" y="${y}" width="${size}" height="${size}"`)
 }
 
-function gallery(name: string, samples: Sample[]): void {
-  const width = GAP + samples.length * (CELL + GAP)
-  const height = GAP + CELL + LABEL + GAP
-  const body = samples.map((sample, index) => cell(sample, index, `${name}${index}-`)).join('')
+function cell(
+  sample: Sample,
+  index: number,
+  total: number,
+  prefix: string,
+  columns: number,
+  grid: Grid,
+): string {
+  const leftover = total % columns
+  const lastRow = total - index <= leftover
+  const indent = lastRow ? ((columns - leftover) * (CELL + grid.gap)) / 2 : 0
+  const x = grid.gap + indent + (index % columns) * (CELL + grid.gap)
+  const y = grid.gap + Math.floor(index / columns) * (CELL + grid.caption + grid.gap)
+  const label = `<text x="${x + CELL / 2}" y="${y + CELL + grid.caption - 8}" text-anchor="middle" fill="#ABA8B8" font-size="${grid.size}" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">${sample.label}</text>`
+  return placedScene(sample, x, y, CELL, prefix) + label
+}
+
+function gallery(
+  name: string,
+  samples: Sample[],
+  columns = samples.length,
+  grid: Grid = ALBUM,
+): void {
+  const rows = Math.ceil(samples.length / columns)
+  const width = grid.gap + columns * (CELL + grid.gap)
+  const height = grid.gap + rows * (CELL + grid.caption + grid.gap)
+  const body = samples
+    .map((sample, index) => cell(sample, index, samples.length, `${name}${index}-`, columns, grid))
+    .join('')
   writeFileSync(
     join(OUT, `${name}.svg`),
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${body}</svg>\n`,
@@ -108,6 +142,7 @@ function gallery(name: string, samples: Sample[]): void {
 }
 
 const FONT = '-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+const MONO = 'ui-monospace, Menlo, monospace'
 const BOLT = 'M7,2V13H10V22L17,10H13L17,2H7Z'
 const WIDTH = 960
 const HEIGHT = 572
@@ -1160,29 +1195,34 @@ function dayCycle(only?: number, stillOffset?: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="A day in Housetide, from dawn to night"><style><![CDATA[${css}]]></style><clipPath id="round">${box(0, 0, WIDTH, HEIGHT, 24)}</clipPath>${clips}<g clip-path="url(#round)">${sky}${sun}${moon}${chromeMarkup()}${scenes}${texts}${strip}${captions}</g></svg>\n`
 }
 
-function layoutScene(tile: Tile, x: number, y: number, width: number): string {
-  const scene = { progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never
-  return serialize(renderScene(scene, { animations: false, bleed: true }))
+type SceneSample = Omit<Sample, 'label'>
+
+const sampleView = (sample: SceneSample) =>
+  ({ progress: 0.5, fill: 0, stink: 0, ...sample }) as never
+
+function layoutScene(sample: SceneSample, x: number, y: number, width: number): string {
+  return serialize(renderScene(sampleView(sample), { animations: false, bleed: true }))
     .replaceAll(/<!--.*?-->/g, '')
     .replace('<svg', `<svg x="${x}" y="${y}" width="${width}" height="${width * 0.96}"`)
+}
+
+const heading = (x: number, y: number, text: string) =>
+  `<text x="${x}" y="${y}" font-size="15" fill="#aba8b8" font-family="${MONO}">${text}</text>`
+
+const pictureHeight = (width: number) => Math.round(width * 0.96 + 89)
+
+function pictureTile(tile: Tile, x: number, y: number, width: number, id: string): string {
+  const art = Math.round(width * 0.96)
+  const height = pictureHeight(width)
+  const { floor } = sceneSurface(sampleView(tile.scene))
+  return `<clipPath id="${id}">${box(x, y, width, height, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${floor}"/>${layoutScene(tile.scene, x, y, width)}</g>${label(x + 10, y + art + 19, 15.5, '#f4f2fa', tile.title, 'font-weight="600"')}${label(x + 10, y + art + 37, 11.5, '#ffffff', `${tile.stage} · ${tile.status}`, 'opacity="0.76"')}${buttonMarkup(tile, x + 10, y + art + 43, width - 20)}`
 }
 
 function layoutsImage(): string {
   const washed = wash('waiting', 1, 0, 'Hang it up', 'Just finished', 'Hung up', 'loud')
   const tasks = [pillsDue, washed, plantLater]
-  const surface = (tile: Tile) =>
-    sceneSurface({ progress: 0.5, fill: 0, stink: 0, ...tile.scene } as never)
-  const heading = (x: number, text: string) =>
-    `<text x="${x}" y="50" font-size="15" fill="#aba8b8" font-family="ui-monospace, Menlo, monospace">${text}</text>`
-  const tileW = 168
-  const tileH = 250
   const tiles = tasks
-    .map((tile, index) => {
-      const x = 40 + index * (tileW + 10)
-      const y = 66
-      const id = `layout-tile-${index}`
-      return `<clipPath id="${id}">${box(x, y, tileW, tileH, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${x}" y="${y}" width="${tileW}" height="${tileH}" fill="${surface(tile).floor}"/>${layoutScene(tile, x, y, tileW)}</g>${label(x + 10, y + 180, 15.5, '#f4f2fa', tile.title, 'font-weight="600"')}${label(x + 10, y + 198, 11.5, '#ffffff', `${tile.stage} · ${tile.status}`, 'opacity="0.76"')}${buttonMarkup(tile, x + 10, y + 204, tileW - 20)}`
-    })
+    .map((tile, index) => pictureTile(tile, 40 + index * 178, 66, 168, `layout-tile-${index}`))
     .join('')
   const rowX = 612
   const rowW = 308
@@ -1191,13 +1231,342 @@ function layoutsImage(): string {
     .map((tile, index) => {
       const y = 66 + index * 84
       const id = `layout-row-${index}`
-      const { wall, floor } = surface(tile)
-      return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="${rowFloor}" fill="${wall}"/><rect x="${rowX}" y="${y + rowFloor}" width="${rowW}" height="${76 - rowFloor}" fill="${floor}"/>${layoutScene(tile, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
+      const { wall, floor } = sceneSurface(sampleView(tile.scene))
+      return `<clipPath id="${id}">${box(rowX, y, rowW, 76, 16)}</clipPath><g clip-path="url(#${id})"><rect x="${rowX}" y="${y}" width="${rowW}" height="${rowFloor}" fill="${wall}"/><rect x="${rowX}" y="${y + rowFloor}" width="${rowW}" height="${76 - rowFloor}" fill="${floor}"/>${layoutScene(tile.scene, rowX, y, 76)}</g>${label(rowX + 86, y + 24, 15, '#f4f2fa', tile.title, 'font-weight="600"')}${label(rowX + 86, y + 43, 11.5, '#ffffff', tile.stage, 'opacity="0.76"')}${label(rowX + 86, y + 60, 11.5, '#ffffff', tile.status, 'opacity="0.76"')}${buttonMarkup(tile, rowX + rowW - 100, y + 19, 90)}`
     })
     .join('')
   const width = 960
   const height = 340
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same three tasks as picture tiles and as compact strips">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(40, 'layout: scenes')}${heading(rowX, 'layout: list')}${tiles}${rows}</svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same three tasks as picture tiles and as compact strips">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(40, 50, 'layout: scenes')}${heading(rowX, 50, 'layout: list')}${tiles}${rows}</svg>\n`
+}
+
+const EDITOR_INK = '#f2f0f8'
+const EDITOR_MUTED = '#aba8b8'
+const EDITOR_PANEL = '#262431'
+const EDITOR_FIELD = '#343140'
+const EDITOR_LINE = '#514e60'
+const EDITOR_ACCENT = '#7f77dd'
+const EDITOR_PREVIEW: SceneSample[] = [
+  { name: 'laundry', state: 'due', fill: 0.7 },
+  { name: 'plant', state: 'resting', fill: 0.6 },
+]
+
+function miniBars(x: number, y: number, width: number): string {
+  return (
+    box(x, y, width * 0.7, 4, 2, 'fill="#fff" opacity="0.85"') +
+    box(x, y + 7, width * 0.45, 4, 2, 'fill="#fff" opacity="0.5"')
+  )
+}
+
+function layoutOption(kind: 'scenes' | 'list', x: number, y: number, width: number): string {
+  const selected = kind === 'scenes'
+  const inside = width - 20
+  const shell = box(
+    x + 1,
+    y + 1,
+    width - 2,
+    150,
+    12,
+    `fill="${EDITOR_FIELD}" stroke="${selected ? EDITOR_ACCENT : EDITOR_LINE}" stroke-width="2"`,
+  )
+  const minis = EDITOR_PREVIEW.map((sample, index) => {
+    const id = `editor-mini-${kind}-${index}`
+    const { wall, floor } = sceneSurface(sampleView(sample))
+    if (kind === 'scenes') {
+      const miniW = (inside - 6) / 2
+      const miniX = x + 10 + index * (miniW + 6)
+      const miniH = miniW * 0.96 + 21
+      return `<clipPath id="${id}">${box(miniX, y + 12, miniW, miniH, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${miniX}" y="${y + 12}" width="${miniW}" height="${miniH}" fill="${floor}"/>${layoutScene(sample, miniX, y + 12, miniW)}</g>${miniBars(miniX + 6, y + 12 + miniW * 0.96 + 5, miniW - 12)}`
+    }
+    const miniY = y + 21 + index * 46
+    return `<clipPath id="${id}">${box(x + 10, miniY, inside, 40, 7)}</clipPath><g clip-path="url(#${id})"><rect x="${x + 10}" y="${miniY}" width="${inside}" height="40" fill="${wall}"/>${layoutScene(sample, x + 10, miniY, 42)}</g>${miniBars(x + 58, miniY + 15, inside - 60)}`
+  }).join('')
+  return `${shell}${minis}${label(x + width / 2, y + 137, 14, EDITOR_INK, kind === 'scenes' ? 'Scenes' : 'List', 'text-anchor="middle" font-weight="500"')}`
+}
+
+function choiceButton(text: string, x: number, y: number, width: number, on: boolean): string {
+  const shape = on
+    ? `fill="${EDITOR_ACCENT}"`
+    : `fill="none" stroke="${EDITOR_LINE}" stroke-width="1"`
+  return `${box(x, y, width, 44, 12, shape)}${label(x + width / 2, y + 27, 14, on ? '#ffffff' : EDITOR_INK, text, 'text-anchor="middle" font-weight="500"')}`
+}
+
+function pickRow(
+  sample: SceneSample,
+  title: string,
+  ticked: boolean,
+  x: number,
+  y: number,
+  width: number,
+  id: string,
+): string {
+  const box24 = x + width - 36
+  const tick = ticked
+    ? `${box(box24, y + 16, 24, 24, 5, `fill="${EDITOR_ACCENT}"`)}<path d="M${box24 + 6} ${y + 28.5}l4.5 4.5 7.5-9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
+    : box(
+        box24 + 0.5,
+        y + 16.5,
+        23,
+        23,
+        5,
+        `fill="none" stroke="${EDITOR_MUTED}" stroke-width="1.4"`,
+      )
+  return `${box(x, y, width, 56, 8, `fill="${EDITOR_FIELD}"`)}<clipPath id="${id}">${box(x + 6, y + 6, 44, 44, 8)}</clipPath><g clip-path="url(#${id})">${layoutScene(sample, x + 6, y + 6, 45.9)}</g>${label(x + 62, y + 33, 15, EDITOR_INK, title)}${tick}`
+}
+
+function editorImage(): string {
+  const width = 960
+  const top = 66
+  const left = 24
+  const panelW = 436
+  const inner = left + 16
+  const innerW = panelW - 32
+  const optionW = (innerW - 12) / 2
+  const washed = wash('waiting', 1, 0, 'Hang it up', 'Just finished', 'Hung up', 'loud')
+  const order: Tile = {
+    title: 'Order water bottles',
+    stage: 'Order bottles',
+    status: 'Due now',
+    button: 'Ordered',
+    tone: 'loud',
+    scene: { name: 'cooler', state: 'due', fill: 1 },
+  }
+  const teeth: SceneSample = { name: 'teeth', state: 'resting', fill: 0 }
+  const shown = [pillsDue, washed, plantLater, order]
+
+  let y = top + 16
+  const controls: string[] = []
+  const title = (text: string) => {
+    controls.push(label(inner, y + 14, 14, EDITOR_MUTED, text))
+    y += 26
+  }
+  title('Title')
+  y -= 4
+  controls.push(
+    box(inner, y, innerW, 44, 8, `fill="${EDITOR_FIELD}" stroke="${EDITOR_LINE}" stroke-width="1"`),
+    label(inner + 12, y + 27, 15, EDITOR_INK, 'Home'),
+  )
+  y += 64
+  title('Layout')
+  controls.push(
+    layoutOption('scenes', inner, y, optionW),
+    layoutOption('list', inner + optionW + 12, y, optionW),
+  )
+  y += 172
+  title('Show')
+  controls.push(
+    choiceButton('Today', inner, y, innerW * 0.477, true),
+    choiceButton('All tasks', inner + innerW * 0.477 + 6, y, innerW * 0.523 - 6, false),
+  )
+  y += 64
+  title('Tasks')
+  controls.push(
+    label(
+      inner,
+      y + 11,
+      13,
+      EDITOR_MUTED,
+      'Nothing ticked means all tasks. Ticked tasks appear in',
+    ),
+    label(inner, y + 29, 13, EDITOR_MUTED, 'the order you tick them.'),
+  )
+  y += 44
+  shown.forEach((tile, index) => {
+    controls.push(pickRow(tile.scene, tile.title, true, inner, y, innerW, `editor-pick-${index}`))
+    y += 62
+  })
+  controls.push(pickRow(teeth, 'Brush your teeth', false, inner, y, innerW, 'editor-pick-off'))
+  y += 56 + 20
+  controls.push(
+    label(inner, y + 27, 15, EDITOR_INK, 'Animations'),
+    box(inner + innerW - 52, y + 9, 52, 26, 13, `fill="${EDITOR_ACCENT}"`),
+    `<circle cx="${inner + innerW - 13}" cy="${y + 22}" r="9" fill="#fff"/>`,
+  )
+  y += 44
+  const panelH = y + 16 - top
+  const bottom = top + panelH
+
+  const cardX = left + panelW + 24
+  const cardW = width - 24 - cardX
+  const tileW = (cardW - 32 - 10) / 2
+  const tileH = pictureHeight(tileW)
+  const cardH = 48 + tileH * 2 + 10 + 16
+  const tiles = shown
+    .map((tile, index) =>
+      pictureTile(
+        tile,
+        cardX + 16 + (index % 2) * (tileW + 10),
+        top + 48 + Math.floor(index / 2) * (tileH + 10),
+        tileW,
+        `editor-tile-${index}`,
+      ),
+    )
+    .join('')
+  const yamlTop = top + cardH + 38
+  const yamlLines = [
+    ['type', 'custom:housetide-card'],
+    ['title', 'Home'],
+    ['layout', 'scenes'],
+    ['tasks', ''],
+    ['', '9f2c41d8e7…'],
+    ['', '4be07a13c5…'],
+    ['', 'c81d96f2a4…'],
+    ['', '07aa3e5d1b…'],
+  ]
+  const yaml = yamlLines
+    .map(([key, value], index) => {
+      const text = key
+        ? `<tspan fill="#c9c3ff">${key}:</tspan> <tspan fill="#f4e7c9">${value}</tspan>`
+        : `<tspan fill="#aba8b8">  - </tspan><tspan fill="#f4e7c9">${value}</tspan>`
+      return `<text x="${cardX + 16}" y="${yamlTop + 24 + index * 17}" font-size="13.5" font-family="${MONO}" xml:space="preserve">${text}</text>`
+    })
+    .join('')
+  const height = bottom + 24
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The Housetide card editor next to the card it configures">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(left, 50, 'visual editor')}${heading(cardX, 50, 'the card')}${box(left, top, panelW, panelH, 14, `fill="${EDITOR_PANEL}"`)}${controls.join('')}${box(cardX, top, cardW, cardH, 14, `fill="${EDITOR_PANEL}"`)}${label(cardX + 16, top + 31, 20, EDITOR_INK, 'Home', 'font-weight="600"')}${label(cardX + cardW - 16, top + 31, 14, EDITOR_MUTED, '3 tasks due', 'text-anchor="end"')}${tiles}${heading(cardX, yamlTop - 12, 'what it saves')}${box(cardX, yamlTop, cardW, bottom - yamlTop, 14, 'fill="#14131b"')}${yaml}</svg>\n`
+}
+
+const LOOK_SIZE = 160
+const LOOK_STEP = 174
+const LOOK_INK = '#f2f0f8'
+
+function lookCell(sample: Sample, x: number, y: number, prefix: string): string {
+  return (
+    placedScene(sample, x, y, LOOK_SIZE, prefix) +
+    label(x + LOOK_SIZE / 2, y + LOOK_SIZE + 27, 18, LOOK_INK, sample.label, 'text-anchor="middle"')
+  )
+}
+
+function looksImage(): string {
+  const width = 960
+  const height = 536
+  const rowOne = 66
+  const rowTwo = 324
+  const laundryX = 420
+  const paletteX = 594
+  const pets: Sample[] = [
+    { label: 'Cat', name: 'pet', state: 'due', fill: 1, look: { variant: 'cat' } },
+    { label: 'Dog', name: 'pet', state: 'due', fill: 1, look: { variant: 'dog' } },
+  ]
+  const loads: Sample[] = [
+    { label: 'Colours', name: 'laundry', state: 'due', fill: 1, look: { variant: 'colored' } },
+    { label: 'Whites', name: 'laundry', state: 'due', fill: 1, look: { variant: 'white' } },
+    { label: 'Darks', name: 'laundry', state: 'due', fill: 1, look: { variant: 'black' } },
+  ]
+  const picks = ['Coral', 'Aqua', 'Lilac'].map((name): Sample => {
+    const accent = ACCENTS.find((entry) => entry.name === name.toLowerCase())?.color
+    return { label: name, name: 'vacuum', state: 'due', fill: 1, look: { accent } }
+  })
+  const swatches = ACCENTS.map(({ name, color }, index) => {
+    const x = paletteX + 12 + (index > 4 ? LOOK_STEP : 0)
+    const y = rowTwo + 14 + (index % 5) * 34
+    const title = name.charAt(0).toUpperCase() + name.slice(1)
+    return `<circle cx="${x}" cy="${y}" r="12" fill="${color}"/>${label(x + 24, y + 6, 17, LOOK_INK, title)}`
+  }).join('')
+  const cells = [
+    ...pets.map((sample, index) =>
+      lookCell(sample, 32 + index * LOOK_STEP, rowOne, `looks-pet${index}-`),
+    ),
+    ...loads.map((sample, index) =>
+      lookCell(sample, laundryX + index * LOOK_STEP, rowOne, `looks-load${index}-`),
+    ),
+    ...picks.map((sample, index) =>
+      lookCell(sample, 32 + index * LOOK_STEP, rowTwo, `looks-accent${index}-`),
+    ),
+  ].join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="The same scenes with a different variant or accent colour">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(32, 50, 'variant: the pet')}${heading(laundryX, 50, 'variant: the laundry')}${heading(32, rowTwo - 16, 'accent: one vacuum, three moods')}${heading(paletteX, rowTwo - 16, 'accent: or any #rrggbb')}${cells}${swatches}</svg>\n`
+}
+
+const CAST: Record<SceneName, Omit<Sample, 'name'>> = {
+  laundry: { label: 'It has a smell now', state: 'due', fill: 1, stink: 0.8 },
+  bed: { label: 'Hotel, but yours', state: 'clean' },
+  dishes: { label: 'Soup of the day', state: 'due', fill: 1, stink: 0.8 },
+  trash: { label: 'Plotting an escape', state: 'due', fill: 1, stink: 0.5 },
+  vacuum: { label: 'Hunting dust', state: 'running', fill: 1 },
+  bathroom: { label: 'Scrub in progress', state: 'running', fill: 1 },
+  fridge: { label: 'Now sentient', state: 'due', fill: 1, stink: 0.9 },
+  window: { label: 'Birds, be warned', state: 'clean' },
+  cooler: { label: 'Five minutes away', state: 'waiting', fill: 1 },
+  filter: { label: 'Now with texture', state: 'due', fill: 1, stink: 0.8 },
+  lawn: { label: 'Legally a meadow', state: 'due', fill: 1, stink: 0.8 },
+  pet: { label: 'Has never been fed', state: 'due', fill: 1 },
+  plant: { label: 'Writing its will', state: 'due', fill: 1, stink: 0.9 },
+  pills: {
+    label: 'Wednesday? Never.',
+    state: 'due',
+    fill: 1,
+    slots: ['taken', 'taken', 'missed', 'current', 'full', 'full', 'full'],
+  },
+  teeth: { label: 'Yes, two minutes', state: 'running', fill: 1 },
+  water: { label: 'Hydration achieved', state: 'clean' },
+  gym: { label: 'Gains, in rust', state: 'due', fill: 1, stink: 0.8 },
+  pool: { label: 'Mosquito resort', state: 'due', fill: 1, stink: 0.8 },
+  yoga: { label: 'Downward regret', state: 'due', fill: 1, stink: 0.8 },
+  run: { label: 'A mouse lives here', state: 'due', fill: 1, stink: 0.8 },
+  ev: { label: 'Eating electrons', state: 'running', fill: 1 },
+  fuel: { label: 'Vulture on standby', state: 'due', fill: 1, stink: 0.8 },
+  carwash: { label: 'Bird-approved', state: 'due', fill: 1, stink: 0.8 },
+  study: { label: 'Chapter one, again', state: 'due', fill: 1, stink: 0.8 },
+  language: { label: 'Pardon my French', state: 'due', fill: 1, stink: 0.8 },
+  coding: { label: 'It is a feature', state: 'due', fill: 1, stink: 0.8 },
+  slides: { label: 'Next slide, please', state: 'due', fill: 1, stink: 0.8 },
+  book: { label: 'Moths finished it', state: 'due', fill: 1, stink: 0.8 },
+  backup: { label: 'Last backup: never', state: 'due', fill: 1, stink: 0.8 },
+  groceries: { label: 'One onion, crying', state: 'due', fill: 1, stink: 0.8 },
+  cooking: { label: 'Alarm says dinner', state: 'due', fill: 1, stink: 0.8 },
+  bills: { label: 'Final final notice', state: 'due', fill: 1, stink: 0.8 },
+  call: { label: 'Mum has questions', state: 'due', fill: 1, stink: 0.8 },
+  journal: { label: 'Dear diary, sorry', state: 'due', fill: 1, stink: 0.8 },
+  music: { label: 'A bit flat', state: 'due', fill: 1, stink: 0.8 },
+  owl: { label: 'Do it. Or else.', state: 'due', fill: 1, stink: 0.9 },
+  generic: { label: 'Everything else', state: 'accumulating', fill: 0.6 },
+}
+
+const castSample = (name: SceneName): Sample => ({ name, ...CAST[name] })
+
+const castOrder: SceneName[] = [
+  ...PICKER_GROUPS.flatMap((group) => group.scenes).filter((name) => name !== 'owl'),
+  'owl',
+]
+
+const OWL_NAG_MINUTES = 360
+const OWL_DEADLINE = 23 * 60 + 59
+const OWL_DAY: ReadonlyArray<readonly [string, string]> = [
+  ['03:00', 'Nothing to see here'],
+  ['12:00', 'The eyes warm up'],
+  ['18:00', 'Now it looks at you'],
+  ['19:30', 'Is that a blade?'],
+  ['21:30', 'It is getting longer'],
+  ['23:10', 'Full butter knife'],
+]
+
+function owlAt(time: string): Sample {
+  const [hours = 0, minutes = 0] = time.split(':').map(Number)
+  const now = hours * 60 + minutes
+  const nagging = OWL_DEADLINE - OWL_NAG_MINUTES
+  return {
+    label: time,
+    name: 'owl',
+    state: now < nagging ? 'accumulating' : 'due',
+    fill: now / OWL_DEADLINE,
+    stink: Math.max(0, (now - nagging) / OWL_NAG_MINUTES),
+  }
+}
+
+function owlImage(): string {
+  const top = 66
+  const step = CELL + GAP
+  const width = GAP + OWL_DAY.length * step
+  const height = top + CELL + 80
+  const stages = OWL_DAY.map(([time, joke], index) => {
+    const x = GAP + index * step
+    const middle = 'text-anchor="middle"'
+    return (
+      placedScene(owlAt(time), x, top, CELL, `owl${index}-`) +
+      label(x + CELL / 2, top + CELL + 32, 22, LOOK_INK, time, `${middle} font-weight="600"`) +
+      label(x + CELL / 2, top + CELL + 60, 18, '#ABA8B8', joke, middle)
+    )
+  }).join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="One owl over one day, from calm to a full butter knife">${box(0, 0, width, height, 24, 'fill="#1C1B24"')}${heading(GAP, 46, 'any time today')}${heading(GAP + 2 * step, 46, 'the last six hours')}${stages}</svg>\n`
 }
 
 mkdirSync(OUT, { recursive: true })
@@ -1208,29 +1577,12 @@ gallery('laundry', [
   { label: 'Hang it up', name: 'laundry', state: 'waiting', fill: 1, stink: 0.5 },
   { label: 'Clean', name: 'laundry', state: 'clean' },
 ])
-gallery('home', [
-  { label: 'Brushing', name: 'teeth', state: 'running', fill: 1 },
-  { label: 'Fresh sheets', name: 'bed', state: 'clean' },
-  { label: 'Sink full', name: 'dishes', state: 'due', fill: 1, stink: 0.8 },
-  { label: 'Overflowing', name: 'trash', state: 'due', fill: 1, stink: 0.5 },
-  { label: 'Hunting dust', name: 'vacuum', state: 'running', fill: 1 },
-])
-gallery('more', [
-  { label: 'Feed me', name: 'pet', state: 'due', fill: 1 },
-  { label: 'Scrubbing', name: 'bathroom', state: 'running', fill: 1 },
-  { label: 'Science project', name: 'fridge', state: 'due', fill: 1, stink: 0.9 },
-  { label: 'Crystal clear', name: 'window', state: 'clean' },
-  { label: 'Topped up', name: 'water', state: 'clean' },
-])
-gallery('others', [
-  { label: 'Time for a pill', name: 'pills', state: 'due', fill: 1 },
-  { label: 'Taken', name: 'pills', state: 'clean' },
-  { label: 'Getting thirsty', name: 'plant', state: 'accumulating', fill: 0.7 },
-  { label: 'Please', name: 'plant', state: 'due', fill: 1, stink: 0.9 },
-  { label: 'Any other task', name: 'generic', state: 'accumulating', fill: 0.6 },
-])
+gallery('cast', castOrder.map(castSample), 6, WALL)
 writeFileSync(join(OUT, 'day.svg'), dayCycle())
 writeFileSync(join(OUT, 'layouts.svg'), layoutsImage())
+writeFileSync(join(OUT, 'editor.svg'), editorImage())
+writeFileSync(join(OUT, 'looks.svg'), looksImage())
+writeFileSync(join(OUT, 'owl.svg'), owlImage())
 
 const frameArg = process.argv.indexOf('--frame')
 if (frameArg !== -1) {
